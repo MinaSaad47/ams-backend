@@ -1,4 +1,5 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE TYPE USER_ROLE as ENUM ('attendee', 'instructor');
 CREATE TABLE IF NOT EXISTS admins (
     id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(32) NOT NULL,
@@ -7,7 +8,6 @@ CREATE TABLE IF NOT EXISTS admins (
     create_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-CREATE TYPE USER_ROLE as ENUM ('attendee', 'instructor');
 CREATE TABLE IF NOT EXISTS users (
     id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     number BIGINT NOT NULL CONSTRAINT user_number_must_be_unique UNIQUE,

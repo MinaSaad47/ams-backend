@@ -15,3 +15,5 @@ dotenvy = {workspace = true}
 dotenvy_macro = {workspace = true}
 itertools = "0.10.5"
 mockall = {workspace = true}
+thiserror = {workspace = true}
+sqlx = { version = "0.6.2", features = ["postgres"] }

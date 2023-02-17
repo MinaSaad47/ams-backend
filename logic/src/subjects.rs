@@ -1,24 +1,28 @@
-
 use chrono::{DateTime, FixedOffset};
 use sea_orm::{
-    prelude::async_trait::async_trait, ActiveModelTrait, DatabaseConnection, EntityTrait,
-    LoaderTrait, ModelTrait, Set,
+    prelude::async_trait::async_trait, ActiveModelTrait, ColumnTrait, DatabaseConnection,
+    EntityTrait, LoaderTrait, ModelTrait, QueryFilter, QueryTrait, Set,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
     database::{subjects, users},
+    error::RepoError,
     users::User,
 };
 
 #[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait SubjectsRepoTrait {
-    async fn create(&self, subject: CreateSubject) -> Subject;
-    async fn get_by_id(&self, id: Uuid) -> Subject;
-    async fn get_all(&self) -> Vec<Subject>;
-    async fn delete_by_id(&self, id: Uuid);
+    async fn create(&self, subject: CreateSubject) -> Result<Subject, RepoError>;
+    async fn get_by_id(&self, id: Uuid) -> Result<Subject, RepoError>;
+    async fn get(
+        &self,
+        name: Option<String>,
+        instructor: Option<Uuid>,
+    ) -> Result<Vec<Subject>, RepoError>;
+    async fn delete_by_id(&self, id: Uuid) -> Result<(), RepoError>;
 }
 
 pub struct SubjectsRepository(pub DatabaseConnection);
@@ -31,7 +35,7 @@ impl AsRef<DatabaseConnection> for SubjectsRepository {
 
 #[async_trait]
 impl SubjectsRepoTrait for SubjectsRepository {
-    async fn create(&self, subject: CreateSubject) -> Subject {
+    async fn create(&self, subject: CreateSubject) -> Result<Subject, RepoError> {
         let subject = subjects::ActiveModel {
             name: Set(subject.name),
             instructor_id: Set(subject.instructor_id),
@@ -39,29 +43,36 @@ impl SubjectsRepoTrait for SubjectsRepository {
             ..Default::default()
         }
         .insert(self.as_ref())
-        .await
-        .unwrap();
+        .await?;
 
-        self.get_by_id(subject.id).await
+        Ok(self.get_by_id(subject.id).await?)
     }
-    async fn get_by_id(&self, id: Uuid) -> Subject {
+    async fn get_by_id(&self, id: Uuid) -> Result<Subject, RepoError> {
         let subject = subjects::Entity::find_by_id(id)
             .one(self.as_ref())
-            .await
-            .unwrap()
-            .unwrap();
+            .await?
+            .ok_or(RepoError::NotFound("subject".to_owned()))?;
 
         let instructor = subject
             .find_related(users::Entity)
             .one(self.as_ref())
-            .await
-            .unwrap()
-            .unwrap();
+            .await?
+            .ok_or(RepoError::NotFound("instructor".to_owned()))?;
 
-        (subject, instructor.into()).into()
+        Ok((subject, instructor.into()).into())
     }
-    async fn get_all(&self) -> Vec<Subject> {
+    async fn get(
+        &self,
+        name: Option<String>,
+        instructor: Option<Uuid>,
+    ) -> Result<Vec<Subject>, RepoError> {
         let subjects: Vec<subjects::Model> = subjects::Entity::find()
+            .apply_if(name, |query, name| {
+                query.filter(subjects::Column::Name.eq(format!("%{name}%")))
+            })
+            .apply_if(instructor, |query, instructor| {
+                query.filter(subjects::Column::InstructorId.eq(instructor))
+            })
             .all(self.as_ref())
             .await
             .into_iter()
@@ -77,26 +88,26 @@ impl SubjectsRepoTrait for SubjectsRepository {
             .map(User::from)
             .collect();
 
-        itertools::izip!(subjects, instructors)
+        Ok(itertools::izip!(subjects, instructors)
             .map(Subject::from)
-            .collect()
+            .collect())
     }
-    async fn delete_by_id(&self, id: Uuid) {
+    async fn delete_by_id(&self, id: Uuid) -> Result<(), RepoError> {
         subjects::Entity::delete_by_id(id)
             .exec(self.as_ref())
-            .await
-            .unwrap();
+            .await?;
+        Ok(())
     }
 }
 
 #[derive(Serialize)]
 pub struct Subject {
-    id: Uuid,
-    name: String,
-    instructor: User,
-    cron_expr: String,
-    create_at: DateTime<FixedOffset>,
-    updated_at: DateTime<FixedOffset>,
+    pub id: Uuid,
+    pub name: String,
+    pub instructor: User,
+    pub cron_expr: String,
+    pub create_at: DateTime<FixedOffset>,
+    pub updated_at: DateTime<FixedOffset>,
 }
 
 impl From<(subjects::Model, User)> for Subject {
@@ -127,6 +138,7 @@ impl From<(subjects::Model, User)> for Subject {
 #[derive(Deserialize)]
 pub struct CreateSubject {
     pub name: String,
+    #[serde(skip)]
     pub instructor_id: Uuid,
     pub cron_expr: String,
 }

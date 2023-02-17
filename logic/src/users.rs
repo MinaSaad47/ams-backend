@@ -1,23 +1,28 @@
 use chrono::{DateTime, FixedOffset};
 use sea_orm::{
-    prelude::async_trait::async_trait, ActiveModelTrait, DatabaseConnection, EntityTrait, Set,
+    prelude::async_trait::async_trait, ActiveModelTrait, ColumnTrait, DatabaseConnection,
+    EntityTrait, QueryFilter, Set,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::database::{sea_orm_active_enums, users};
+use crate::{
+    database::{sea_orm_active_enums, users},
+    error::RepoError,
+};
 
 #[async_trait]
 pub trait UsersRepoTrait {
-    async fn create(&self, user: CreateUser) -> User;
-    async fn get_by_id(&self, id: Uuid) -> User;
-    async fn get_all(&self) -> Vec<User>;
-    async fn delete_by_id(&self, id: Uuid);
+    async fn create(&self, user: CreateUser) -> Result<User, RepoError>;
+    async fn get_by_id(&self, id: Uuid) -> Result<User, RepoError>;
+    async fn get_by_email(&self, email: String) -> Result<User, RepoError>;
+    async fn get_all(&self) -> Result<Vec<User>, RepoError>;
+    async fn delete_by_id(&self, id: Uuid) -> Result<(), RepoError>;
 }
 
-pub struct UsersRepository(pub DatabaseConnection);
+pub struct UsersRepo(pub DatabaseConnection);
 
-impl AsRef<DatabaseConnection> for UsersRepository {
+impl AsRef<DatabaseConnection> for UsersRepo {
     fn as_ref(&self) -> &DatabaseConnection {
         &self.0
     }
@@ -25,9 +30,9 @@ impl AsRef<DatabaseConnection> for UsersRepository {
 
 #[cfg_attr(test, mockall::automock)]
 #[async_trait]
-impl UsersRepoTrait for UsersRepository {
-    async fn create(&self, user: CreateUser) -> User {
-        users::ActiveModel {
+impl UsersRepoTrait for UsersRepo {
+    async fn create(&self, user: CreateUser) -> Result<User, RepoError> {
+        Ok(users::ActiveModel {
             name: Set(user.name),
             email: Set(user.email),
             password: Set(user.password),
@@ -36,37 +41,41 @@ impl UsersRepoTrait for UsersRepository {
             ..Default::default()
         }
         .insert(self.as_ref())
-        .await
-        .unwrap()
-        .into()
+        .await?
+        .into())
     }
-    async fn get_by_id(&self, id: Uuid) -> User {
-        users::Entity::find_by_id(id)
+    async fn get_by_id(&self, id: Uuid) -> Result<User, RepoError> {
+        Ok(users::Entity::find_by_id(id)
             .one(self.as_ref())
-            .await
-            .unwrap()
-            .unwrap()
-            .into()
+            .await?
+            .ok_or(RepoError::NotFound("user".to_owned()))?
+            .into())
     }
-    async fn get_all(&self) -> Vec<User> {
-        users::Entity::find()
+    async fn get_by_email(&self, email: String) -> Result<User, RepoError> {
+        Ok(users::Entity::find()
+            .filter(users::Column::Email.eq(&email))
+            .one(self.as_ref())
+            .await?
+            .ok_or(RepoError::NotFound("user".to_owned()))?
+            .into())
+    }
+    async fn get_all(&self) -> Result<Vec<User>, RepoError> {
+        Ok(users::Entity::find()
             .all(self.as_ref())
             .await
             .into_iter()
             .flatten()
             .map(User::from)
-            .collect()
+            .collect())
     }
-    async fn delete_by_id(&self, id: Uuid) {
-        users::Entity::delete_by_id(id)
-            .exec(self.as_ref())
-            .await
-            .unwrap();
+    async fn delete_by_id(&self, id: Uuid) -> Result<(), RepoError> {
+        users::Entity::delete_by_id(id).exec(self.as_ref()).await?;
+        Ok(())
     }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-enum UserRole {
+pub enum UserRole {
     Instructor,
     Attendee,
 }
@@ -74,8 +83,8 @@ enum UserRole {
 impl From<sea_orm_active_enums::UserRole> for UserRole {
     fn from(value: sea_orm_active_enums::UserRole) -> Self {
         match value {
-            sea_orm_active_enums::UserRole::Attendee => Self::Attendee,
-            sea_orm_active_enums::UserRole::Instructor => Self::Instructor,
+            sea_orm_active_enums::UserRole::Attendee => UserRole::Attendee,
+            sea_orm_active_enums::UserRole::Instructor => UserRole::Instructor,
         }
     }
 }
@@ -83,22 +92,23 @@ impl From<sea_orm_active_enums::UserRole> for UserRole {
 impl From<UserRole> for sea_orm_active_enums::UserRole {
     fn from(value: UserRole) -> Self {
         match value {
-            UserRole::Attendee => Self::Attendee,
-            UserRole::Instructor => Self::Instructor,
+            UserRole::Attendee => sea_orm_active_enums::UserRole::Attendee,
+            UserRole::Instructor => sea_orm_active_enums::UserRole::Instructor,
         }
     }
 }
 
 #[derive(Serialize)]
 pub struct User {
-    id: Uuid,
-    number: i64,
-    name: String,
-    email: String,
-    password: String,
-    role: UserRole,
-    create_at: DateTime<FixedOffset>,
-    updated_at: DateTime<FixedOffset>,
+    pub id: Uuid,
+    pub number: i64,
+    pub name: String,
+    pub email: String,
+    #[serde(skip)]
+    pub password: String,
+    pub role: UserRole,
+    pub create_at: DateTime<FixedOffset>,
+    pub updated_at: DateTime<FixedOffset>,
 }
 
 impl From<users::Model> for User {

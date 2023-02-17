@@ -1,8 +1,10 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use axum::{extract::FromRef, Router};
+use axum::Router;
 
-mod database;
+mod auth;
+mod error;
+mod response;
 mod routes;
 
 use dotenvy_macro::dotenv;
@@ -10,26 +12,24 @@ use logic::{
     admins::{AdminsRepoTrait, AdminsRepository},
     attendances::{AttendancesRepoTrait, AttendancesRepository},
     subjects::{SubjectsRepoTrait, SubjectsRepository},
-    users::{UsersRepoTrait, UsersRepository},
+    users::{UsersRepo, UsersRepoTrait},
 };
-use routes::{admins, attendances, subjects, users};
+use routes::{
+    admins, attendances,
+    attendees::{self, AttendeesState},
+    auths,
+    instructors::{self, InstructorsState},
+    subjects,
+};
 use sea_orm::Database;
 use tower_http::trace::TraceLayer;
 
 use dotenvy::dotenv;
 
-pub type AdminsRepo = Arc<dyn AdminsRepoTrait + Send + Sync>;
-pub type UsersRepo = Arc<dyn UsersRepoTrait + Send + Sync>;
-pub type AttendancesRepo = Arc<dyn AttendancesRepoTrait + Send + Sync>;
-pub type SubjectsRepo = Arc<dyn SubjectsRepoTrait + Send + Sync>;
-
-#[derive(FromRef, Clone)]
-pub struct AppState {
-    admins_repo: AdminsRepo,
-    users_repo: UsersRepo,
-    subjects_repo: SubjectsRepo,
-    attendances_repo: AttendancesRepo,
-}
+pub type DynAdminsRepo = Arc<dyn AdminsRepoTrait + Send + Sync>;
+pub type DynUsersRepo = Arc<dyn UsersRepoTrait + Send + Sync>;
+pub type DynAttendancesRepo = Arc<dyn AttendancesRepoTrait + Send + Sync>;
+pub type DynSubjectsRepo = Arc<dyn SubjectsRepoTrait + Send + Sync>;
 
 #[tokio::main]
 async fn main() {
@@ -40,29 +40,32 @@ async fn main() {
 
     dotenv().ok();
 
-    let db = Database::connect(dotenv!("DATABASE_URL")).await.unwrap();
+    let db = Database::connect(dotenv!("DATABASE_URL"))
+        .await
+        .expect("posgresql connection");
 
     let admins_repo = Arc::new(AdminsRepository(db.clone()));
-    let users_repo = Arc::new(UsersRepository(db.clone()));
+    let users_repo = Arc::new(UsersRepo(db.clone()));
     let subjects_repo = Arc::new(SubjectsRepository(db.clone()));
     let attendances_repo = Arc::new(AttendancesRepository(db));
-
-    let app_state = AppState {
-        admins_repo,
-        users_repo,
-        subjects_repo,
-        attendances_repo,
-    };
 
     let app = Router::new()
         .nest(
             "/api",
             Router::new()
-                .merge(admins::routes())
-                .merge(users::routes())
-                .merge(attendances::routes())
-                .merge(subjects::routes())
-                .with_state(app_state),
+                .merge(auths::routes(users_repo.clone()))
+                .merge(admins::routes(admins_repo))
+                .merge(instructors::routes(InstructorsState {
+                    users_repo: users_repo.clone(),
+                    subjects_repo: subjects_repo.clone(),
+                    attendances_repo: attendances_repo.clone(),
+                }))
+                .merge(attendances::routes(attendances_repo))
+                .merge(attendees::routes(AttendeesState {
+                    user_repo: users_repo.clone(),
+                    subjects_repo: subjects_repo.clone(),
+                }))
+                .merge(subjects::routes(subjects_repo)),
         )
         .layer(TraceLayer::new_for_http());
 
@@ -70,5 +73,5 @@ async fn main() {
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
-        .unwrap();
+        .expect("axum server");
 }

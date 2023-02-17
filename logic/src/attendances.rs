@@ -1,4 +1,3 @@
-
 use chrono::{DateTime, FixedOffset};
 use sea_orm::{
     prelude::async_trait::async_trait, ActiveModelTrait, DatabaseConnection, EntityTrait,
@@ -9,16 +8,17 @@ use uuid::Uuid;
 
 use crate::{
     database::{attendances, subjects, users},
+    error::RepoError,
     subjects::Subject,
     users::User,
 };
 
 #[async_trait]
 pub trait AttendancesRepoTrait {
-    async fn create(&self, attendance: CreateAttendance) -> Attendance;
-    async fn delete_by_id(&self, id: Uuid);
-    async fn get_all(&self) -> Vec<Attendance>;
-    async fn get_by_id(&self, id: Uuid) -> Attendance;
+    async fn create(&self, attendance: CreateAttendance) -> Result<Attendance, RepoError>;
+    async fn delete_by_id(&self, id: Uuid) -> Result<(), RepoError>;
+    async fn get_all(&self) -> Result<Vec<Attendance>, RepoError>;
+    async fn get_by_id(&self, id: Uuid) -> Result<Attendance, RepoError>;
 }
 
 pub struct AttendancesRepository(pub DatabaseConnection);
@@ -32,26 +32,25 @@ impl AsRef<DatabaseConnection> for AttendancesRepository {
 #[cfg_attr(test, mockall::automock)]
 #[async_trait]
 impl AttendancesRepoTrait for AttendancesRepository {
-    async fn create(&self, attendance: CreateAttendance) -> Attendance {
+    async fn create(&self, attendance: CreateAttendance) -> Result<Attendance, RepoError> {
         let attendance: attendances::Model = attendances::ActiveModel {
             user_id: Set(attendance.user_id),
             subject_id: Set(attendance.subject_id),
             ..Default::default()
         }
         .insert(self.as_ref())
-        .await
-        .unwrap()
+        .await?
         .into();
 
-        self.get_by_id(attendance.id).await
+        Ok(self.get_by_id(attendance.id).await?)
     }
-    async fn delete_by_id(&self, id: Uuid) {
+    async fn delete_by_id(&self, id: Uuid) -> Result<(), RepoError> {
         attendances::Entity::delete_by_id(id)
             .exec(self.as_ref())
-            .await
-            .unwrap();
+            .await?;
+        Ok(())
     }
-    async fn get_all(&self) -> Vec<Attendance> {
+    async fn get_all(&self) -> Result<Vec<Attendance>, RepoError> {
         let attendances: Vec<attendances::Model> = attendances::Entity::find()
             .all(self.as_ref())
             .await
@@ -88,41 +87,37 @@ impl AttendancesRepoTrait for AttendancesRepository {
             .map(Subject::from)
             .collect();
 
-        itertools::izip!(attendances, attendees, subjects)
+        Ok(itertools::izip!(attendances, attendees, subjects)
             .map(Attendance::from)
-            .collect()
+            .collect())
     }
-    async fn get_by_id(&self, id: Uuid) -> Attendance {
+    async fn get_by_id(&self, id: Uuid) -> Result<Attendance, RepoError> {
         let attendance = attendances::Entity::find_by_id(id)
             .one(self.as_ref())
-            .await
-            .unwrap()
-            .unwrap();
+            .await?
+            .ok_or(RepoError::NotFound("attendacne".to_owned()))?;
 
         let attendee = attendance
             .find_related(users::Entity)
             .one(self.as_ref())
-            .await
-            .unwrap()
-            .unwrap()
+            .await?
+            .ok_or(RepoError::NotFound("attendee".to_owned()))?
             .into();
 
         let subject = attendance
             .find_related(subjects::Entity)
             .one(self.as_ref())
-            .await
-            .unwrap()
-            .unwrap();
+            .await?
+            .ok_or(RepoError::NotFound("subject".to_owned()))?;
 
         let instructor = subject
             .find_related(users::Entity)
             .one(self.as_ref())
-            .await
-            .unwrap()
-            .unwrap()
+            .await?
+            .ok_or(RepoError::NotFound("instructor".to_owned()))?
             .into();
 
-        (attendance, attendee, (subject, instructor).into()).into()
+        Ok((attendance, attendee, (subject, instructor).into()).into())
     }
 }
 
