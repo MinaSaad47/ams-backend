@@ -11,10 +11,6 @@
     - [x] (POST) /api/instructors/<id>/subjects
     - [x] (GET) /api/instructors/<id>/subjects/<id>
     - [x] (DELETE) /api/instructors/<id>/subjects/<id>
-    - [ ] (GET) /api/instructors/<id>/attendances
-    - [ ] (POST) /api/instructors/<id>/attendances
-    - [ ] (GET) /api/instructors/<id>/attendances/<id>
-    - [ ] (DELETE) /api/instructors/<id>/attendances
   - [ ] attendees
     - [ ] (GET) /api/attendees/<id>
     - [ ] (GET) /api/attendees/<id>/subjects
@@ -22,7 +18,6 @@
     - [ ] (GET) /api/attendees/<id>/subjects/<id>
 - [x] error handling
 - [ ] auth
-  - [ ] jwt
-  - [ ] middleware
+  - [x] jwt
   - [ ] authentication
   - [ ] authorization

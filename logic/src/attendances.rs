@@ -7,10 +7,11 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    database::{attendances, subjects, users},
+    attendees::Attendee,
+    database::{attendances, attendees, instructors, subjects},
     error::RepoError,
+    instructors::Instructor,
     subjects::Subject,
-    users::User,
 };
 
 #[async_trait]
@@ -21,9 +22,9 @@ pub trait AttendancesRepoTrait {
     async fn get_by_id(&self, id: Uuid) -> Result<Attendance, RepoError>;
 }
 
-pub struct AttendancesRepository(pub DatabaseConnection);
+pub struct AttendancesRepo(pub DatabaseConnection);
 
-impl AsRef<DatabaseConnection> for AttendancesRepository {
+impl AsRef<DatabaseConnection> for AttendancesRepo {
     fn as_ref(&self) -> &DatabaseConnection {
         &self.0
     }
@@ -31,10 +32,10 @@ impl AsRef<DatabaseConnection> for AttendancesRepository {
 
 #[cfg_attr(test, mockall::automock)]
 #[async_trait]
-impl AttendancesRepoTrait for AttendancesRepository {
+impl AttendancesRepoTrait for AttendancesRepo {
     async fn create(&self, attendance: CreateAttendance) -> Result<Attendance, RepoError> {
         let attendance: attendances::Model = attendances::ActiveModel {
-            user_id: Set(attendance.user_id),
+            attendee_id: Set(attendance.attendee_id),
             subject_id: Set(attendance.subject_id),
             ..Default::default()
         }
@@ -59,12 +60,12 @@ impl AttendancesRepoTrait for AttendancesRepository {
             .collect();
 
         let attendees = attendances
-            .load_one(users::Entity, self.as_ref())
+            .load_one(attendees::Entity, self.as_ref())
             .await
             .into_iter()
             .flatten()
             .flatten()
-            .map(User::from);
+            .map(Attendee::from);
 
         let subjects: Vec<subjects::Model> = attendances
             .load_one(subjects::Entity, self.as_ref())
@@ -74,13 +75,11 @@ impl AttendancesRepoTrait for AttendancesRepository {
             .flatten()
             .collect();
 
-        let instructors: Vec<User> = subjects
-            .load_one(users::Entity, self.as_ref())
-            .await
+        let instructors: Vec<Option<Instructor>> = subjects
+            .load_one(instructors::Entity, self.as_ref())
+            .await?
             .into_iter()
-            .flatten()
-            .flatten()
-            .map(User::from)
+            .map(|i| i.map(Instructor::from))
             .collect();
 
         let subjects: Vec<Subject> = itertools::izip!(subjects, instructors)
@@ -98,7 +97,7 @@ impl AttendancesRepoTrait for AttendancesRepository {
             .ok_or(RepoError::NotFound("attendacne".to_owned()))?;
 
         let attendee = attendance
-            .find_related(users::Entity)
+            .find_related(attendees::Entity)
             .one(self.as_ref())
             .await?
             .ok_or(RepoError::NotFound("attendee".to_owned()))?
@@ -111,35 +110,35 @@ impl AttendancesRepoTrait for AttendancesRepository {
             .ok_or(RepoError::NotFound("subject".to_owned()))?;
 
         let instructor = subject
-            .find_related(users::Entity)
+            .find_related(instructors::Entity)
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound("instructor".to_owned()))?
-            .into();
+            .map(Instructor::from);
 
         Ok((attendance, attendee, (subject, instructor).into()).into())
     }
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Attendance {
     pub id: Uuid,
-    pub attendee: User,
+    pub attendee: Attendee,
     pub subject: Subject,
     pub create_at: DateTime<FixedOffset>,
 }
 
-impl From<(attendances::Model, User, Subject)> for Attendance {
+impl From<(attendances::Model, Attendee, Subject)> for Attendance {
     fn from(
-        (attendances::Model { id, create_at, .. }, user, subject): (
+        (attendances::Model { id, create_at, .. }, attendee, subject): (
             attendances::Model,
-            User,
+            Attendee,
             Subject,
         ),
     ) -> Self {
         Self {
             id,
-            attendee: user,
+            attendee,
             subject,
             create_at,
         }
@@ -147,7 +146,8 @@ impl From<(attendances::Model, User, Subject)> for Attendance {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateAttendance {
-    pub user_id: Uuid,
+    pub attendee_id: Uuid,
     pub subject_id: Uuid,
 }

@@ -4,6 +4,7 @@ pub mod prelude;
 
 pub mod admins;
 pub mod attendances;
-pub mod sea_orm_active_enums;
+pub mod attendees;
+pub mod attendees_subjects;
+pub mod instructors;
 pub mod subjects;
-pub mod users;

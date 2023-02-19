@@ -4,6 +4,7 @@ use sea_orm::sea_query::tests_cfg::json;
 
 use crate::auth::AuthError;
 
+#[allow(dead_code)]
 pub enum ApiError {
     RepoError(RepoError),
     AuthError(AuthError),

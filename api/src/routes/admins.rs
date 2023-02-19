@@ -1,40 +1,46 @@
 use axum::{
-    extract::{Path, State},
-    routing::{delete, get},
+    extract::{FromRef, State},
+    routing::post,
     Json, Router,
 };
+use jsonwebtoken::{encode, Header};
 
-use logic::admins::{Admin, CreateAdmin};
+use crate::{
+    auth::{AuthBody, AuthError, AuthPayload, Claims, User, KEYS},
+    error::ApiError,
+    response::AppResponse,
+    DynAdminsRepo,
+};
 
-use uuid::Uuid;
+#[derive(Clone, FromRef)]
+pub struct AdminsState {
+    pub admins_repo: DynAdminsRepo,
+}
 
-use crate::{error::ApiError, response::AppResponse, DynAdminsRepo};
-
-pub fn routes(admin_repo: DynAdminsRepo) -> Router {
+pub fn routes(admins_state: AdminsState) -> Router {
     Router::new()
-        .route("/admins", get(get_all).post(create_one))
-        .route("/admins/:id", delete(delete_one))
-        .with_state(admin_repo)
+        .route("/admins/login", post(login_one_admin))
+        .with_state(admins_state)
 }
 
-async fn create_one(
+async fn login_one_admin(
     State(repo): State<DynAdminsRepo>,
-    Json(admin): Json<CreateAdmin>,
-) -> Result<Json<Admin>, ApiError> {
-    Ok(Json(repo.create(admin).await?))
-}
+    Json(payload): Json<AuthPayload>,
+) -> Result<AppResponse<AuthBody>, ApiError> {
+    let admin = repo.get_by_email(payload.email).await?;
 
-async fn get_all(State(repo): State<DynAdminsRepo>) -> Result<AppResponse<Vec<Admin>>, ApiError> {
-    Ok(AppResponse::with_content(
-        repo.get_all().await?,
-        "retreived all admins successfully",
-    ))
-}
+    if payload.password != admin.password {
+        return Err(AuthError::WrongCredentials.into());
+    }
 
-pub async fn delete_one(
-    Path(id): Path<Uuid>,
-    State(repo): State<DynAdminsRepo>,
-) -> Result<AppResponse<()>, ApiError> {
-    repo.delete_by_id(id).await?;
-    Ok(AppResponse::no_content("deleted an admin successfully"))
+    let claims = Claims {
+        exp: usize::max_value(),
+        user: User::Admin(admin.id),
+    };
+
+    let token = encode(&Header::default(), &claims, &KEYS.encoding).unwrap();
+
+    let response = AppResponse::with_content(AuthBody { token }, "logged in as admin successfully");
+
+    Ok(response)
 }

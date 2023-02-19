@@ -3,14 +3,16 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "subjects")]
+#[sea_orm(table_name = "attendees")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
     #[sea_orm(unique)]
+    pub number: i64,
     pub name: String,
-    pub instructor_id: Option<Uuid>,
-    pub cron_expr: String,
+    #[sea_orm(unique)]
+    pub email: String,
+    pub password: String,
     pub create_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
@@ -19,14 +21,6 @@ pub struct Model {
 pub enum Relation {
     #[sea_orm(has_many = "super::attendances::Entity")]
     Attendances,
-    #[sea_orm(
-        belongs_to = "super::instructors::Entity",
-        from = "Column::InstructorId",
-        to = "super::instructors::Column::Id",
-        on_update = "NoAction",
-        on_delete = "NoAction"
-    )]
-    Instructors,
 }
 
 impl Related<super::attendances::Entity> for Entity {
@@ -35,18 +29,12 @@ impl Related<super::attendances::Entity> for Entity {
     }
 }
 
-impl Related<super::instructors::Entity> for Entity {
+impl Related<super::subjects::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Instructors.def()
-    }
-}
-
-impl Related<super::attendees::Entity> for Entity {
-    fn to() -> RelationDef {
-        super::attendees_subjects::Relation::Attendees.def()
+        super::attendees_subjects::Relation::Subjects.def()
     }
     fn via() -> Option<RelationDef> {
-        Some(super::attendees_subjects::Relation::Subjects.def().rev())
+        Some(super::attendees_subjects::Relation::Attendees.def().rev())
     }
 }
 

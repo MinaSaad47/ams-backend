@@ -9,15 +9,16 @@ mod routes;
 
 use dotenvy_macro::dotenv;
 use logic::{
-    admins::{AdminsRepoTrait, AdminsRepository},
-    attendances::{AttendancesRepoTrait, AttendancesRepository},
+    admins::{AdminsRepo, AdminsRepoTrait},
+    attendances::{AttendancesRepo, AttendancesRepoTrait},
+    attendees::{AttendeesRepo, AttendeesRepoTrait},
+    instructors::{InstructorsRepo, InstructorsRepoTrait},
     subjects::{SubjectsRepoTrait, SubjectsRepository},
-    users::{UsersRepo, UsersRepoTrait},
 };
 use routes::{
-    admins, attendances,
+    admins::{self, AdminsState},
+    attendances,
     attendees::{self, AttendeesState},
-    auths,
     instructors::{self, InstructorsState},
     subjects,
 };
@@ -27,7 +28,8 @@ use tower_http::trace::TraceLayer;
 use dotenvy::dotenv;
 
 pub type DynAdminsRepo = Arc<dyn AdminsRepoTrait + Send + Sync>;
-pub type DynUsersRepo = Arc<dyn UsersRepoTrait + Send + Sync>;
+pub type DynInstructorsRepo = Arc<dyn InstructorsRepoTrait + Send + Sync>;
+pub type DynAttendeesRepo = Arc<dyn AttendeesRepoTrait + Send + Sync>;
 pub type DynAttendancesRepo = Arc<dyn AttendancesRepoTrait + Send + Sync>;
 pub type DynSubjectsRepo = Arc<dyn SubjectsRepoTrait + Send + Sync>;
 
@@ -44,25 +46,27 @@ async fn main() {
         .await
         .expect("posgresql connection");
 
-    let admins_repo = Arc::new(AdminsRepository(db.clone()));
-    let users_repo = Arc::new(UsersRepo(db.clone()));
+    let admins_repo = Arc::new(AdminsRepo(db.clone()));
+    let instructors_repo = Arc::new(InstructorsRepo(db.clone()));
+    let attendees_repo = Arc::new(AttendeesRepo(db.clone()));
     let subjects_repo = Arc::new(SubjectsRepository(db.clone()));
-    let attendances_repo = Arc::new(AttendancesRepository(db));
+    let attendances_repo = Arc::new(AttendancesRepo(db));
 
     let app = Router::new()
         .nest(
             "/api",
             Router::new()
-                .merge(auths::routes(users_repo.clone()))
-                .merge(admins::routes(admins_repo))
+                .merge(admins::routes(AdminsState {
+                    admins_repo: admins_repo.clone(),
+                }))
                 .merge(instructors::routes(InstructorsState {
-                    users_repo: users_repo.clone(),
+                    instructors_repo: instructors_repo.clone(),
                     subjects_repo: subjects_repo.clone(),
                     attendances_repo: attendances_repo.clone(),
                 }))
                 .merge(attendances::routes(attendances_repo))
                 .merge(attendees::routes(AttendeesState {
-                    user_repo: users_repo.clone(),
+                    attendees_repo: attendees_repo.clone(),
                     subjects_repo: subjects_repo.clone(),
                 }))
                 .merge(subjects::routes(subjects_repo)),

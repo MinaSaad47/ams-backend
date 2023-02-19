@@ -1,26 +1,26 @@
 use axum::{
     extract::{FromRef, Path, State},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 
+use jsonwebtoken::{encode, Header};
 use logic::{
-    subjects::{CreateSubject, Subject},
-    users::{CreateUser, User},
+    instructors::{CreateInstructor, Instructor, UpdateInstructor},
+    subjects::Subject,
 };
-
 use uuid::Uuid;
 
 use crate::{
-    auth::{AuthError, Instructor},
+    auth::{AuthBody, AuthError, AuthPayload, Claims, User, KEYS},
     error::ApiError,
     response::AppResponse,
-    DynAttendancesRepo, DynSubjectsRepo, DynUsersRepo,
+    DynAttendancesRepo, DynInstructorsRepo, DynSubjectsRepo,
 };
 
 #[derive(FromRef, Clone)]
 pub struct InstructorsState {
-    pub users_repo: DynUsersRepo,
+    pub instructors_repo: DynInstructorsRepo,
     pub subjects_repo: DynSubjectsRepo,
     pub attendances_repo: DynAttendancesRepo,
 }
@@ -29,20 +29,29 @@ pub fn routes(instructors_state: InstructorsState) -> Router {
     Router::new()
         .route(
             "/instructors",
-            get(get_all_instrutors).post(create_one_instructor),
+            get(get_all_instructors).post(create_one_instructor),
         )
         .route(
             "/instructors/:id",
-            get(get_one_instrutor).delete(delete_one_instrutor),
+            get(get_one_instructor)
+                .patch(update_one_instructor)
+                .delete(delete_one_instructor),
         )
         .route(
-            "/instructors/:id/subjects",
-            get(get_all_subjects).post(create_one_subject),
+            "/instructors/<id>/subjects",
+            post(get_all_subjects_for_one_instructor),
         )
         .route(
-            "/instructors/:id/subjects/:<id>",
-            get(get_one_subject).delete(delete_one_subject),
+            "/instructors/<id>/subjects/<id>",
+            get(get_one_subject_for_one_instructor)
+                .put(put_one_subjects_to_one_instructor)
+                .delete(delete_one_subjects_from_one_instructor),
         )
+        .route(
+            "/instructors/<id>/subjects/<id>",
+            post(login_one_instructor),
+        )
+        .route("/instructors/login", post(login_one_instructor))
         .with_state(instructors_state)
 }
 
@@ -50,103 +59,119 @@ pub fn routes(instructors_state: InstructorsState) -> Router {
 * Instructors Routes
 */
 
+async fn get_all_instructors(
+    State(repo): State<DynInstructorsRepo>,
+    claimes: Claims,
+) -> Result<AppResponse<Vec<Instructor>>, ApiError> {
+    let User::Admin(_) = claimes.user else {
+        return Err(AuthError::UnauthorizedAccess.into());
+    };
+
+    let instructors = repo.get_all().await?;
+    let response = AppResponse::created(instructors, "retreived all instructors successfully");
+    Ok(response)
+}
+
 async fn create_one_instructor(
-    State(repo): State<DynUsersRepo>,
-    Json(user): Json<CreateUser>,
-) -> Result<Json<User>, ApiError> {
-    Ok(Json(repo.create(user).await?))
+    State(repo): State<DynInstructorsRepo>,
+    claimes: Claims,
+    Json(instructor): Json<CreateInstructor>,
+) -> Result<AppResponse<Instructor>, ApiError> {
+    let User::Admin(_) = claimes.user else {
+        return Err(AuthError::UnauthorizedAccess.into());
+    };
+
+    let instructor = repo.create(instructor).await?;
+    let response = AppResponse::created(instructor, "create on instructor successfully");
+
+    Ok(response)
 }
 
-async fn get_all_instrutors(
-    State(repo): State<DynUsersRepo>,
-    _instructor: Instructor,
-) -> Result<AppResponse<Vec<User>>, ApiError> {
-    Ok(AppResponse::with_content(
-        repo.get_all().await?,
-        "retreived all users successfully",
-    ))
-}
-
-async fn get_one_instrutor(
+async fn get_one_instructor(
+    State(repo): State<DynInstructorsRepo>,
     Path(id): Path<Uuid>,
-    State(repo): State<DynUsersRepo>,
-) -> Result<AppResponse<User>, ApiError> {
-    Ok(AppResponse::with_content(
-        repo.get_by_id(id).await?,
-        "retreived all users successfully",
-    ))
+    claimes: Claims,
+) -> Result<AppResponse<Instructor>, ApiError> {
+    let _ = match claimes.user {
+        User::Admin(_) => {}
+        User::Instructor(id) if id == id => {}
+        _ => {
+            return Err(AuthError::UnauthorizedAccess.into());
+        }
+    };
+
+    let instructor = repo.get_by_id(id).await?;
+    let response = AppResponse::with_content(instructor, "retreived an instructor successfully");
+
+    Ok(response)
 }
 
-pub async fn delete_one_instrutor(
+async fn update_one_instructor(
+    State(repo): State<DynInstructorsRepo>,
     Path(id): Path<Uuid>,
-    State(repo): State<DynUsersRepo>,
+    claimes: Claims,
+    Json(update_instructor): Json<UpdateInstructor>,
+) -> Result<AppResponse<Instructor>, ApiError> {
+    let User::Admin(_) = claimes.user else {
+        return Err(AuthError::UnauthorizedAccess.into());
+    };
+
+    let instructor = repo.update(id, update_instructor).await?;
+    let response = AppResponse::with_content(instructor, "update the instructor successfully");
+
+    Ok(response)
+}
+
+async fn delete_one_instructor(
+    State(repo): State<DynInstructorsRepo>,
+    Path(id): Path<Uuid>,
+    claimes: Claims,
 ) -> Result<AppResponse<()>, ApiError> {
+    let User::Admin(_) = claimes.user else {
+        return Err(AuthError::UnauthorizedAccess.into());
+    };
+
     repo.delete_by_id(id).await?;
-    Ok(AppResponse::no_content("deleted a user successfully"))
+    let response = AppResponse::no_content("deleted one instructor successfully");
+
+    Ok(response)
 }
 
-/*
-* Subjects Routes
-*/
-pub async fn get_all_subjects(
-    State(subjects_repo): State<DynSubjectsRepo>,
-    instrutor: Instructor,
-) -> Result<AppResponse<Vec<Subject>>, ApiError> {
-    Ok(AppResponse::with_content(
-        subjects_repo.get(None, Some(instrutor.id)).await?,
-        &format!("retreived all subjects for {} successfully", instrutor.name),
-    ))
-}
+async fn login_one_instructor(
+    State(repo): State<DynInstructorsRepo>,
+    Json(payload): Json<AuthPayload>,
+) -> Result<AppResponse<AuthBody>, ApiError> {
+    let instructor = repo.get_by_email(payload.email).await?;
 
-pub async fn get_one_subject(
-    Path(id): Path<Uuid>,
-    State(subjects_repo): State<DynSubjectsRepo>,
-    instrutor: Instructor,
-) -> Result<AppResponse<Subject>, ApiError> {
-    let subject = subjects_repo.get_by_id(id).await?;
-
-    if subject.instructor.id != instrutor.id {
-        Err(AuthError::UnauthorizedAccess)?
+    if payload.password != instructor.password {
+        return Err(AuthError::WrongCredentials.into());
     }
 
-    let subject_name = subject.name.clone();
-    Ok(AppResponse::with_content(
-        subject,
-        &format!(
-            "retreived subject {} for {} successfully",
-            subject_name, instrutor.name
-        ),
-    ))
+    let claims = Claims {
+        exp: usize::max_value(),
+        user: User::Instructor(instructor.id),
+    };
+
+    let token = encode(&Header::default(), &claims, &KEYS.encoding).unwrap();
+
+    let response =
+        AppResponse::with_content(AuthBody { token }, "logged in as instructor successfully");
+
+    Ok(response)
 }
 
-pub async fn create_one_subject(
-    State(subjects_repo): State<DynSubjectsRepo>,
-    instrutor: Instructor,
-    Json(mut subject): Json<CreateSubject>,
-) -> Result<AppResponse<Subject>, ApiError> {
-    subject.instructor_id = instrutor.id;
-    let subject_name = subject.name.clone();
-    Ok(AppResponse::created(
-        subjects_repo.create(subject).await?,
-        &format!(
-            "created subject `{}` for instrutor `{}`",
-            subject_name, instrutor.name
-        ),
-    ))
+async fn get_all_subjects_for_one_instructor() -> Result<AppResponse<Vec<Subject>>, ApiError> {
+    todo!()
 }
 
-pub async fn delete_one_subject(
-    Path(id): Path<Uuid>,
-    State(subjects_repo): State<DynSubjectsRepo>,
-    instrutor: Instructor,
-) -> Result<AppResponse<()>, ApiError> {
-    let subject = subjects_repo.get_by_id(id).await?;
+async fn get_one_subject_for_one_instructor() -> Result<AppResponse<Subject>, ApiError> {
+    todo!()
+}
 
-    if subject.instructor.id != instrutor.id {
-        Err(AuthError::UnauthorizedAccess)?
-    }
+async fn put_one_subjects_to_one_instructor() -> Result<AppResponse<()>, ApiError> {
+    todo!()
+}
 
-    subjects_repo.delete_by_id(subject.id).await?;
-
-    Ok(AppResponse::no_content("deleted one subject successfully"))
+async fn delete_one_subjects_from_one_instructor() -> Result<AppResponse<()>, ApiError> {
+    todo!()
 }

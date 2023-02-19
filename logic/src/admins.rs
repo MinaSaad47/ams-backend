@@ -19,16 +19,16 @@ pub trait AdminsRepoTrait {
     async fn delete_by_id(&self, id: Uuid) -> Result<(), RepoError>;
 }
 
-pub struct AdminsRepository(pub DatabaseConnection);
+pub struct AdminsRepo(pub DatabaseConnection);
 
-impl AsRef<DatabaseConnection> for AdminsRepository {
+impl AsRef<DatabaseConnection> for AdminsRepo {
     fn as_ref(&self) -> &DatabaseConnection {
         &self.0
     }
 }
 
 #[async_trait]
-impl AdminsRepoTrait for AdminsRepository {
+impl AdminsRepoTrait for AdminsRepo {
     async fn create(&self, admin: CreateAdmin) -> Result<Admin, RepoError> {
         Ok(admins::ActiveModel {
             name: Set(admin.name),
@@ -103,6 +103,7 @@ impl From<admins::Model> for Admin {
 }
 
 #[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateAdmin {
     name: String,
     email: String,

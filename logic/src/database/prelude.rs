@@ -2,5 +2,7 @@
 
 pub use super::admins::Entity as Admins;
 pub use super::attendances::Entity as Attendances;
+pub use super::attendees::Entity as Attendees;
+pub use super::attendees_subjects::Entity as AttendeesSubjects;
+pub use super::instructors::Entity as Instructors;
 pub use super::subjects::Entity as Subjects;
-pub use super::users::Entity as Users;
