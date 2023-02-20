@@ -1,7 +1,7 @@
 use chrono::{DateTime, FixedOffset};
 use sea_orm::{
-    prelude::async_trait::async_trait, ActiveModelTrait, DatabaseConnection, EntityTrait,
-    LoaderTrait, ModelTrait, Set,
+    prelude::async_trait::async_trait, ActiveModelTrait, ColumnTrait, DatabaseConnection,
+    EntityTrait, LoaderTrait, ModelTrait, QueryFilter, QueryTrait, Set,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -18,7 +18,8 @@ use crate::{
 pub trait AttendancesRepoTrait {
     async fn create(&self, attendance: CreateAttendance) -> Result<Attendance, RepoError>;
     async fn delete_by_id(&self, id: Uuid) -> Result<(), RepoError>;
-    async fn get_all(&self) -> Result<Vec<Attendance>, RepoError>;
+    async fn get(&self, attendaces_filter: AttendancesFilter)
+        -> Result<Vec<Attendance>, RepoError>;
     async fn get_by_id(&self, id: Uuid) -> Result<Attendance, RepoError>;
 }
 
@@ -51,8 +52,14 @@ impl AttendancesRepoTrait for AttendancesRepo {
             .await?;
         Ok(())
     }
-    async fn get_all(&self) -> Result<Vec<Attendance>, RepoError> {
+    async fn get(&self, filter: AttendancesFilter) -> Result<Vec<Attendance>, RepoError> {
         let attendances: Vec<attendances::Model> = attendances::Entity::find()
+            .apply_if(filter.subject_id, |query, subject| {
+                query.filter(attendances::Column::SubjectId.eq(subject))
+            })
+            .apply_if(filter.attendee_id, |query, attendee| {
+                query.filter(attendances::Column::SubjectId.eq(attendee))
+            })
             .all(self.as_ref())
             .await
             .into_iter()
@@ -150,4 +157,10 @@ impl From<(attendances::Model, Attendee, Subject)> for Attendance {
 pub struct CreateAttendance {
     pub attendee_id: Uuid,
     pub subject_id: Uuid,
+}
+
+#[derive(Default)]
+pub struct AttendancesFilter {
+    pub subject_id: Option<Uuid>,
+    pub attendee_id: Option<Uuid>,
 }

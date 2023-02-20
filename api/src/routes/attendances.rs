@@ -1,13 +1,26 @@
 use axum::{
+    extract::{FromRef, Path, State},
     routing::{get, put},
     Router,
 };
 
-use logic::attendances::Attendance;
+use logic::attendances::{Attendance, AttendancesFilter};
+use uuid::Uuid;
 
-use crate::{error::ApiError, response::AppResponse, DynAttendancesRepo};
+use crate::{
+    auth::{AuthError, Claims, User},
+    error::ApiError,
+    response::AppResponse,
+    DynAttendancesRepo, DynSubjectsRepo,
+};
 
-pub fn routes(attendances_repo: DynAttendancesRepo) -> Router {
+#[derive(Clone, FromRef)]
+pub struct AttandancesState {
+    pub attendances_repo: DynAttendancesRepo,
+    pub subjects_repo: DynSubjectsRepo,
+}
+
+pub fn routes(attendances_state: AttandancesState) -> Router {
     Router::new()
         .route(
             "/attendances/subjects/<id>",
@@ -17,12 +30,36 @@ pub fn routes(attendances_repo: DynAttendancesRepo) -> Router {
             "/attendances/subjects/<id>/attendees/<id>",
             put(create_one_attendance_for_one_subject_and_one_attendee),
         )
-        .with_state(attendances_repo)
+        .with_state(attendances_state)
 }
 
-pub async fn get_all_attendances_for_one_subject() -> Result<AppResponse<Vec<Attendance>>, ApiError>
-{
-    todo!()
+pub async fn get_all_attendances_for_one_subject(
+    State(attendances_repo): State<DynAttendancesRepo>,
+    State(subjects_repo): State<DynSubjectsRepo>,
+    Path(id): Path<Uuid>,
+    claimes: Claims,
+) -> Result<AppResponse<Vec<Attendance>>, ApiError> {
+    let _ = match claimes.user {
+        User::Admin(_) => {}
+        User::Instructor(id) if id == subjects_repo.get_by_id(id).await?.id => {}
+        _ => {
+            return Err(AuthError::UnauthorizedAccess.into());
+        }
+    };
+
+    let attendances = attendances_repo
+        .get(AttendancesFilter {
+            subject_id: Some(id),
+            ..Default::default()
+        })
+        .await?;
+
+    let response = AppResponse::with_content(
+        attendances,
+        "retreived all attendances for a subject successfully",
+    );
+
+    Ok(response)
 }
 
 pub async fn create_one_attendance_for_one_subject_and_one_attendee(

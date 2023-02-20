@@ -20,6 +20,8 @@ pub trait SubjectsRepoTrait {
     async fn get_by_id(&self, id: Uuid) -> Result<Subject, RepoError>;
     async fn get(&self, filter: SubjectsFilter) -> Result<Vec<Subject>, RepoError>;
     async fn update(&self, id: Uuid, update_subject: UpdateSubject) -> Result<Subject, RepoError>;
+    async fn add_attendee(&self, id: Uuid, attendee_id: Uuid) -> Result<(), RepoError>;
+    async fn remove_attendee(&self, id: Uuid, attendee_id: Uuid) -> Result<(), RepoError>;
     async fn delete_by_id(&self, id: Uuid) -> Result<(), RepoError>;
 }
 
@@ -106,7 +108,7 @@ impl SubjectsRepoTrait for SubjectsRepository {
         let mut subject: subjects::ActiveModel = subjects::Entity::find_by_id(id)
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound("attendee".to_owned()))?
+            .ok_or(RepoError::NotFound("subject".to_owned()))?
             .into();
 
         if let Some(name) = name {
@@ -128,6 +130,31 @@ impl SubjectsRepoTrait for SubjectsRepository {
             .map(Instructor::from);
 
         Ok((subject, instructor).into())
+    }
+    async fn add_attendee(&self, id: Uuid, attendee_id: Uuid) -> Result<(), RepoError> {
+        attendees_subjects::ActiveModel {
+            subject_id: Set(id),
+            attendee_id: Set(attendee_id),
+        }
+        .insert(self.as_ref())
+        .await?;
+        Ok(())
+    }
+    async fn remove_attendee(&self, id: Uuid, attendee_id: Uuid) -> Result<(), RepoError> {
+        let attedee_subject: attendees_subjects::ActiveModel = attendees_subjects::Entity::find()
+            .filter(
+                attendees_subjects::Column::AttendeeId
+                    .eq(attendee_id)
+                    .and(attendees_subjects::Column::SubjectId.eq(id)),
+            )
+            .one(self.as_ref())
+            .await?
+            .ok_or(RepoError::NotFound(
+                "subject don't belog to attendee".to_owned(),
+            ))?
+            .into();
+        attedee_subject.delete(self.as_ref()).await?;
+        Ok(())
     }
     async fn delete_by_id(&self, id: Uuid) -> Result<(), RepoError> {
         subjects::Entity::delete_by_id(id)

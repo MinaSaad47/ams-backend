@@ -64,12 +64,16 @@ async fn main() {
                     subjects_repo: subjects_repo.clone(),
                     attendances_repo: attendances_repo.clone(),
                 }))
-                .merge(attendances::routes(attendances_repo))
+                .merge(attendances::routes(attendances::AttandancesState {
+                    attendances_repo: attendances_repo.clone(),
+                    subjects_repo: subjects_repo.clone(),
+                }))
                 .merge(attendees::routes(AttendeesState {
                     attendees_repo: attendees_repo.clone(),
                     subjects_repo: subjects_repo.clone(),
+                    attedances_repo: attendances_repo.clone(),
                 }))
-                .merge(subjects::routes(subjects_repo)),
+                .merge(subjects::routes(subjects_repo.clone())),
         )
         .layer(TraceLayer::new_for_http());
 

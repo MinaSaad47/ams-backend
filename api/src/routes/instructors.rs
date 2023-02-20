@@ -45,8 +45,8 @@ pub fn routes(instructors_state: InstructorsState) -> Router {
         .route(
             "/instructors/<id>/subjects/<id>",
             get(get_one_subject_for_one_instructor)
-                .put(put_one_subjects_to_one_instructor)
-                .delete(delete_one_subjects_from_one_instructor),
+                .put(put_one_subject_to_one_instructor)
+                .delete(delete_one_subject_from_one_instructor),
         )
         .route(
             "/instructors/<id>/subjects/<id>",
@@ -216,7 +216,7 @@ async fn get_one_subject_for_one_instructor(
     Ok(response)
 }
 
-async fn put_one_subjects_to_one_instructor(
+async fn put_one_subject_to_one_instructor(
     State(repo): State<DynSubjectsRepo>,
     Path((instructor_id, subject_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,
@@ -241,7 +241,7 @@ async fn put_one_subjects_to_one_instructor(
     Ok(response)
 }
 
-async fn delete_one_subjects_from_one_instructor(
+async fn delete_one_subject_from_one_instructor(
     State(repo): State<DynSubjectsRepo>,
     Path((instructor_id, subject_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,
