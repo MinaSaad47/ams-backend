@@ -18,12 +18,7 @@ use crate::{
 pub trait SubjectsRepoTrait {
     async fn create(&self, subject: CreateSubject) -> Result<Subject, RepoError>;
     async fn get_by_id(&self, id: Uuid) -> Result<Subject, RepoError>;
-    async fn get(
-        &self,
-        name: Option<String>,
-        instructor: Option<Uuid>,
-        attendee: Option<Uuid>,
-    ) -> Result<Vec<Subject>, RepoError>;
+    async fn get(&self, filter: SubjectsFilter) -> Result<Vec<Subject>, RepoError>;
     async fn update(&self, id: Uuid, update_subject: UpdateSubject) -> Result<Subject, RepoError>;
     async fn delete_by_id(&self, id: Uuid) -> Result<(), RepoError>;
 }
@@ -63,20 +58,18 @@ impl SubjectsRepoTrait for SubjectsRepository {
 
         Ok((subject, instructor).into())
     }
-    async fn get(
-        &self,
-        name: Option<String>,
-        instructor: Option<Uuid>,
-        attendee: Option<Uuid>,
-    ) -> Result<Vec<Subject>, RepoError> {
+    async fn get(&self, filter: SubjectsFilter) -> Result<Vec<Subject>, RepoError> {
         let subjects: Vec<subjects::Model> = subjects::Entity::find()
-            .apply_if(name, |query, name| {
+            .apply_if(filter.id, |query, id| {
+                query.filter(subjects::Column::Id.eq(id))
+            })
+            .apply_if(filter.name, |query, name| {
                 query.filter(subjects::Column::Name.eq(format!("%{name}%")))
             })
-            .apply_if(instructor, |query, instructor| {
+            .apply_if(filter.instructor_id, |query, instructor| {
                 query.filter(subjects::Column::InstructorId.eq(instructor))
             })
-            .apply_if(attendee, |qeury, attendee| {
+            .apply_if(filter.attendee_id, |qeury, attendee| {
                 qeury
                     .join(
                         JoinType::LeftJoin,
@@ -104,7 +97,11 @@ impl SubjectsRepoTrait for SubjectsRepository {
     async fn update(
         &self,
         id: Uuid,
-        UpdateSubject { name, cron_expr }: UpdateSubject,
+        UpdateSubject {
+            name,
+            cron_expr,
+            instructor_id,
+        }: UpdateSubject,
     ) -> Result<Subject, RepoError> {
         let mut subject: subjects::ActiveModel = subjects::Entity::find_by_id(id)
             .one(self.as_ref())
@@ -117,6 +114,9 @@ impl SubjectsRepoTrait for SubjectsRepository {
         }
         if let Some(cron_expr) = cron_expr {
             subject.cron_expr = Set(cron_expr);
+        }
+        if let Some(instructor_id) = instructor_id {
+            subject.instructor_id = Set(instructor_id);
         }
 
         let subject: subjects::Model = subject.update(self.as_ref()).await?;
@@ -179,9 +179,19 @@ pub struct CreateSubject {
     pub cron_expr: String,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSubject {
     pub name: Option<String>,
     pub cron_expr: Option<String>,
+    #[serde(skip)]
+    pub instructor_id: Option<Option<Uuid>>,
+}
+
+#[derive(Default)]
+pub struct SubjectsFilter {
+    pub id: Option<Uuid>,
+    pub name: Option<String>,
+    pub instructor_id: Option<Uuid>,
+    pub attendee_id: Option<Uuid>,
 }

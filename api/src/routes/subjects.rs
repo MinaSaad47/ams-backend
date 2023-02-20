@@ -4,7 +4,7 @@ use axum::{
     Json, Router,
 };
 
-use logic::subjects::{CreateSubject, Subject, UpdateSubject};
+use logic::subjects::{CreateSubject, Subject, SubjectsFilter, UpdateSubject};
 use uuid::Uuid;
 
 use crate::{
@@ -34,7 +34,7 @@ async fn get_all_subjects(
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
-    let subjects = repo.get(None, None, None).await?;
+    let subjects = repo.get(SubjectsFilter::default()).await?;
     let response = AppResponse::with_content(subjects, "retreived all subjects successfully");
 
     Ok(response)

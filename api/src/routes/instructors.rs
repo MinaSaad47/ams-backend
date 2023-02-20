@@ -6,8 +6,9 @@ use axum::{
 
 use jsonwebtoken::{encode, Header};
 use logic::{
+    error::RepoError,
     instructors::{CreateInstructor, Instructor, UpdateInstructor},
-    subjects::Subject,
+    subjects::{Subject, SubjectsFilter, UpdateSubject},
 };
 use uuid::Uuid;
 
@@ -160,18 +161,119 @@ async fn login_one_instructor(
     Ok(response)
 }
 
-async fn get_all_subjects_for_one_instructor() -> Result<AppResponse<Vec<Subject>>, ApiError> {
-    todo!()
+async fn get_all_subjects_for_one_instructor(
+    State(repo): State<DynSubjectsRepo>,
+    Path(instructor_id): Path<Uuid>,
+    claimes: Claims,
+) -> Result<AppResponse<Vec<Subject>>, ApiError> {
+    let _ = match claimes.user {
+        User::Admin(_) => {}
+        User::Instructor(id) if id == instructor_id => {}
+        _ => {
+            return Err(AuthError::UnauthorizedAccess.into());
+        }
+    };
+
+    let subjects = repo
+        .get(SubjectsFilter {
+            instructor_id: Some(instructor_id),
+            ..Default::default()
+        })
+        .await?;
+    let response =
+        AppResponse::with_content(subjects, "retreived associated subjects successfully");
+
+    Ok(response)
 }
 
-async fn get_one_subject_for_one_instructor() -> Result<AppResponse<Subject>, ApiError> {
-    todo!()
+async fn get_one_subject_for_one_instructor(
+    State(repo): State<DynSubjectsRepo>,
+    Path((instructor_id, subject_id)): Path<(Uuid, Uuid)>,
+    claimes: Claims,
+) -> Result<AppResponse<Subject>, ApiError> {
+    let _ = match claimes.user {
+        User::Admin(_) => {}
+        User::Instructor(id) if id == instructor_id => {}
+        _ => {
+            return Err(AuthError::UnauthorizedAccess.into());
+        }
+    };
+
+    let subjects = repo
+        .get(SubjectsFilter {
+            id: Some(subject_id),
+            instructor_id: Some(instructor_id),
+            ..Default::default()
+        })
+        .await?;
+
+    let Some(subject) = subjects.into_iter().nth(0) else {
+        return Err(RepoError::NotFound("subject".to_owned()).into());
+    };
+
+    let response = AppResponse::with_content(subject, "retreived associated subjects successfully");
+
+    Ok(response)
 }
 
-async fn put_one_subjects_to_one_instructor() -> Result<AppResponse<()>, ApiError> {
-    todo!()
+async fn put_one_subjects_to_one_instructor(
+    State(repo): State<DynSubjectsRepo>,
+    Path((instructor_id, subject_id)): Path<(Uuid, Uuid)>,
+    claimes: Claims,
+) -> Result<AppResponse<Subject>, ApiError> {
+    let User::Admin(_) = claimes.user else {
+        return Err(AuthError::UnauthorizedAccess.into());
+    };
+
+    let subject = repo
+        .update(
+            subject_id,
+            UpdateSubject {
+                instructor_id: Some(Some(instructor_id)),
+                ..Default::default()
+            },
+        )
+        .await?;
+
+    let response =
+        AppResponse::with_content(subject, "assigned an instructor to a subject successfully");
+
+    Ok(response)
 }
 
-async fn delete_one_subjects_from_one_instructor() -> Result<AppResponse<()>, ApiError> {
-    todo!()
+async fn delete_one_subjects_from_one_instructor(
+    State(repo): State<DynSubjectsRepo>,
+    Path((instructor_id, subject_id)): Path<(Uuid, Uuid)>,
+    claimes: Claims,
+) -> Result<AppResponse<Subject>, ApiError> {
+    let User::Admin(_) = claimes.user else {
+        return Err(AuthError::UnauthorizedAccess.into());
+    };
+
+    let subject = repo.get_by_id(subject_id).await?;
+
+    if let Some(instructor) = subject.instructor {
+        if instructor.id != instructor_id {
+            return Err(RepoError::NotFound(
+                "no such instructor assigned for the subject".to_owned(),
+            )
+            .into());
+        }
+    }
+
+    let subject = repo
+        .update(
+            subject_id,
+            UpdateSubject {
+                instructor_id: Some(None),
+                ..Default::default()
+            },
+        )
+        .await?;
+    let response = AppResponse::with_content(
+        subject,
+        "removed the instructor from the subject successfully",
+    );
+
+    Ok(response)
 }
