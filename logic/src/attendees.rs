@@ -53,6 +53,7 @@ impl AttendeesRepoTrait for AttendeesRepo {
             email,
             password,
             number,
+            embedding,
         }: UpdateAttendee,
     ) -> Result<Attendee, RepoError> {
         let mut attendee: attendees::ActiveModel = attendees::Entity::find_by_id(id)
@@ -72,6 +73,9 @@ impl AttendeesRepoTrait for AttendeesRepo {
         }
         if let Some(number) = number {
             attendee.number = Set(number);
+        }
+        if let Some(embedding) = embedding {
+            attendee.embedding = Set(embedding);
         }
 
         let attendee: attendees::Model = attendee.update(self.as_ref()).await?;
@@ -118,6 +122,8 @@ pub struct Attendee {
     pub email: String,
     #[serde(skip)]
     pub password: String,
+    #[serde(skip)]
+    pub embedding: Option<Vec<f64>>,
     pub create_at: DateTime<FixedOffset>,
     pub updated_at: DateTime<FixedOffset>,
 }
@@ -132,6 +138,7 @@ impl From<attendees::Model> for Attendee {
             password,
             create_at,
             updated_at,
+            embedding,
         }: attendees::Model,
     ) -> Self {
         Self {
@@ -142,6 +149,7 @@ impl From<attendees::Model> for Attendee {
             password,
             create_at,
             updated_at,
+            embedding,
         }
     }
 }
@@ -154,11 +162,13 @@ pub struct CreateAttendee {
     password: String,
     number: i64,
 }
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateAttendee {
-    name: Option<String>,
-    email: Option<String>,
-    password: Option<String>,
-    number: Option<i64>,
+    pub name: Option<String>,
+    pub email: Option<String>,
+    pub password: Option<String>,
+    pub number: Option<i64>,
+    #[serde(skip)]
+    pub embedding: Option<Option<Vec<f64>>>,
 }

@@ -1,5 +1,7 @@
+use std::env;
+
 use axum::{
-    extract::{FromRef, Path, State},
+    extract::{FromRef, Multipart, Path, State},
     routing::{get, post},
     Json, Router,
 };
@@ -11,6 +13,8 @@ use logic::{
     error::RepoError,
     subjects::{Subject, SubjectsFilter},
 };
+use nn_model::Embbedding;
+use tokio::fs;
 use uuid::Uuid;
 
 use crate::{
@@ -39,6 +43,7 @@ pub fn routes(attendees_state: AttendeesState) -> Router {
                 .patch(update_one_attendee)
                 .delete(delete_one_attendee),
         )
+        .route("/attendees/:id/image", post(upload_image))
         .route(
             "/attendees/<id>/subjects",
             post(get_all_subjects_for_one_attendee),
@@ -65,12 +70,47 @@ pub fn routes(attendees_state: AttendeesState) -> Router {
 async fn get_all_attendees(
     State(repo): State<DynAttendeesRepo>,
     claimes: Claims,
+    multipart: Option<Multipart>,
 ) -> Result<AppResponse<Vec<Attendee>>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
-    let attendees = repo.get_all().await?;
+    let mut attendees = repo.get_all().await?;
+
+    if let Some(mut multipart) = multipart {
+        let Ok(Some(field)) = multipart.next_field().await  else {
+            return Err(ApiError::Unknown);
+        } ;
+
+        let image_path = env::temp_dir().join("image.png");
+
+        fs::write(&image_path, field.bytes().await.unwrap())
+            .await
+            .unwrap();
+
+        let embedding: Vec<f64> = Embbedding::from_image(image_path.to_str().unwrap())
+            .await
+            .unwrap();
+
+        let mut attendees_embeddings: Vec<(Attendee, f64)> = attendees
+            .into_iter()
+            .filter(|attendee| attendee.embedding.is_some())
+            .map(|attendee| {
+                let distance = attendee.embedding.as_ref().unwrap().distance(&embedding);
+                (attendee, distance)
+            })
+            .filter(|(_, distance)| distance < &0.6)
+            .collect();
+
+        attendees_embeddings.sort_by(|attendee1, attendee2| attendee1.1.total_cmp(&attendee2.1));
+
+        attendees = attendees_embeddings
+            .into_iter()
+            .map(|(attendee, _)| attendee)
+            .collect();
+    };
+
     let response = AppResponse::created(attendees, "retreived all attendees successfully");
 
     Ok(response)
@@ -265,6 +305,42 @@ async fn get_all_attendances_with_one_attendee_and_one_subject(
         attendances,
         "retreived all subject attendances for an attendee",
     );
+
+    Ok(response)
+}
+
+async fn upload_image(
+    State(repo): State<DynAttendeesRepo>,
+    Path(id): Path<Uuid>,
+    claimes: Claims,
+    mut multipart: Multipart,
+) -> Result<AppResponse<()>, ApiError> {
+    let User::Admin(_) = claimes.user else {
+        return Err(AuthError::UnauthorizedAccess.into());
+    };
+
+    let Ok(Some(field)) = multipart.next_field().await else {
+        return Err(ApiError::Unknown.into());
+    };
+
+    let image_path = env::temp_dir().join("image.png");
+
+    fs::write(&image_path, field.bytes().await.unwrap())
+        .await
+        .unwrap();
+
+    let embedding = Vec::from_image(image_path.to_str().unwrap()).await.unwrap();
+
+    repo.update(
+        id,
+        UpdateAttendee {
+            embedding: Some(Some(embedding)),
+            ..Default::default()
+        },
+    )
+    .await?;
+
+    let response = AppResponse::no_content("added an image to an attendee successfully");
 
     Ok(response)
 }

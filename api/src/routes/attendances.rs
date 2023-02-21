@@ -4,7 +4,7 @@ use axum::{
     Router,
 };
 
-use logic::attendances::{Attendance, AttendancesFilter};
+use logic::attendances::{Attendance, AttendancesFilter, CreateAttendance};
 use uuid::Uuid;
 
 use crate::{
@@ -63,6 +63,26 @@ pub async fn get_all_attendances_for_one_subject(
 }
 
 pub async fn create_one_attendance_for_one_subject_and_one_attendee(
+    State(repo): State<DynAttendancesRepo>,
+    Path((subject_id, attendee_id)): Path<(Uuid, Uuid)>,
+    claimes: Claims,
 ) -> Result<AppResponse<Attendance>, ApiError> {
-    todo!()
+    let _ = match claimes.user {
+        User::Admin(_) => {}
+        User::Instructor(id) if id == repo.get_by_id(id).await?.id => {}
+        _ => {
+            return Err(AuthError::UnauthorizedAccess.into());
+        }
+    };
+
+    let attendance = repo
+        .create(CreateAttendance {
+            subject_id,
+            attendee_id,
+        })
+        .await?;
+
+    let respone = AppResponse::with_content(attendance, "attendance was taken successfully");
+
+    Ok(respone)
 }

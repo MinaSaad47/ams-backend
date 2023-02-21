@@ -15,7 +15,7 @@
 - [x] /api/instructors/<id>/subjects/ (GET) `view subjects`
 - [x] /api/instructors/<id>/subjects/<id> (GET | PUT | DELETE) `view, add, delete a subject`
 - [x] /api/attendances/subjects/<id> (GET) `view attendances`
-- [-] /api/attendances/subjects/<id>/attendees/<id>?method=<id|qr|face> (PUT) `take attendance`
+- [-] /api/attendances/subjects/<id>/attendees/<id> (PUT) `take attendance`
 
 # attendees
 

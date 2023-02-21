@@ -2,7 +2,7 @@
 
 use sea_orm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "attendees")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
@@ -13,6 +13,7 @@ pub struct Model {
     #[sea_orm(unique)]
     pub email: String,
     pub password: String,
+    pub embedding: Option<Vec<f64>>,
     pub create_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
