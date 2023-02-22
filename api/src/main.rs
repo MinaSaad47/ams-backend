@@ -4,6 +4,7 @@ use axum::Router;
 
 mod auth;
 mod error;
+mod openapi_doc;
 mod response;
 mod routes;
 
@@ -15,6 +16,7 @@ use logic::{
     instructors::{InstructorsRepo, InstructorsRepoTrait},
     subjects::{SubjectsRepoTrait, SubjectsRepository},
 };
+use openapi_doc::ApiDoc;
 use routes::{
     admins::{self, AdminsState},
     attendances,
@@ -26,6 +28,8 @@ use sea_orm::Database;
 use tower_http::trace::TraceLayer;
 
 use dotenvy::dotenv;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 pub type DynAdminsRepo = Arc<dyn AdminsRepoTrait + Send + Sync>;
 pub type DynInstructorsRepo = Arc<dyn InstructorsRepoTrait + Send + Sync>;
@@ -53,6 +57,7 @@ async fn main() {
     let attendances_repo = Arc::new(AttendancesRepo(db));
 
     let app = Router::new()
+        .merge(SwaggerUi::new("/swagger-ui").url("/api-doc/openapi.json", ApiDoc::openapi()))
         .nest(
             "/api",
             Router::new()

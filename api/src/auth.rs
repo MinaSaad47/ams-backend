@@ -11,6 +11,7 @@ use jsonwebtoken::{decode, DecodingKey, EncodingKey, Validation};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::{ToResponse, ToSchema};
 use uuid::Uuid;
 
 use crate::error::ApiError;
@@ -53,14 +54,16 @@ where
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToResponse, ToSchema)]
 pub struct AuthBody {
     pub token: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize, ToSchema)]
 pub struct AuthPayload {
+    #[schema(example = "mina@saad.com")]
     pub email: String,
+    #[schema(example = "474747")]
     pub password: String,
 }
 

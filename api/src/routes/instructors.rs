@@ -28,31 +28,19 @@ pub struct InstructorsState {
 
 pub fn routes(instructors_state: InstructorsState) -> Router {
     Router::new()
-        .route(
-            "/instructors",
-            get(get_all_instructors).post(create_one_instructor),
-        )
+        .route("/instructors", get(get_all).post(create_one))
         .route(
             "/instructors/:id",
-            get(get_one_instructor)
-                .patch(update_one_instructor)
-                .delete(delete_one_instructor),
+            get(get_one).patch(update_one).delete(delete_one),
         )
-        .route(
-            "/instructors/<id>/subjects",
-            post(get_all_subjects_for_one_instructor),
-        )
+        .route("/instructors/<id>/subjects", post(get_all_subjects_for_one))
         .route(
             "/instructors/<id>/subjects/<id>",
-            get(get_one_subject_for_one_instructor)
-                .put(put_one_subject_to_one_instructor)
-                .delete(delete_one_subject_from_one_instructor),
+            get(get_one_subject_for_one)
+                .put(put_one_subject_to_one)
+                .delete(delete_one_subject_from_one),
         )
-        .route(
-            "/instructors/<id>/subjects/<id>",
-            post(login_one_instructor),
-        )
-        .route("/instructors/login", post(login_one_instructor))
+        .route("/instructors/login", post(login))
         .with_state(instructors_state)
 }
 
@@ -60,7 +48,15 @@ pub fn routes(instructors_state: InstructorsState) -> Router {
 * Instructors Routes
 */
 
-async fn get_all_instructors(
+#[utoipa::path(
+    get,
+    path = "/instructors",
+    responses(
+        (status = OK, body = InstructorsListResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn get_all(
     State(repo): State<DynInstructorsRepo>,
     claimes: Claims,
 ) -> Result<AppResponse<Vec<Instructor>>, ApiError> {
@@ -73,7 +69,16 @@ async fn get_all_instructors(
     Ok(response)
 }
 
-async fn create_one_instructor(
+#[utoipa::path(
+    post,
+    path = "/instructors",
+    request_body = CreateInstructor,
+    responses(
+        (status = CREATED, body = InstructorResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn create_one(
     State(repo): State<DynInstructorsRepo>,
     claimes: Claims,
     Json(instructor): Json<CreateInstructor>,
@@ -88,7 +93,18 @@ async fn create_one_instructor(
     Ok(response)
 }
 
-async fn get_one_instructor(
+#[utoipa::path(
+    get,
+    path = "/instructors/{id}",
+    params(
+        ("id" = Uuid, Path, description = "instructor id"),
+    ),
+    responses(
+        (status = CREATED, body = InstructorResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn get_one(
     State(repo): State<DynInstructorsRepo>,
     Path(id): Path<Uuid>,
     claimes: Claims,
@@ -107,7 +123,19 @@ async fn get_one_instructor(
     Ok(response)
 }
 
-async fn update_one_instructor(
+#[utoipa::path(
+    patch,
+    path = "/instructors/{id}",
+    params(
+        ("id" = Uuid, Path, description = "instructor id"),
+    ),
+    request_body = UpdateInstructor,
+    responses(
+        (status = OK, body = InstructorResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn update_one(
     State(repo): State<DynInstructorsRepo>,
     Path(id): Path<Uuid>,
     claimes: Claims,
@@ -123,7 +151,18 @@ async fn update_one_instructor(
     Ok(response)
 }
 
-async fn delete_one_instructor(
+#[utoipa::path(
+    delete,
+    path = "/instructors/{id}",
+    params(
+        ("id" = Uuid, Path, description = "instructor id"),
+    ),
+    responses(
+        (status = OK)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn delete_one(
     State(repo): State<DynInstructorsRepo>,
     Path(id): Path<Uuid>,
     claimes: Claims,
@@ -138,7 +177,16 @@ async fn delete_one_instructor(
     Ok(response)
 }
 
-async fn login_one_instructor(
+#[utoipa::path(
+    delete,
+    path = "/instructors/login",
+    request_body = AuthPayload,
+    responses(
+        (status = OK, body = AuthResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn login(
     State(repo): State<DynInstructorsRepo>,
     Json(payload): Json<AuthPayload>,
 ) -> Result<AppResponse<AuthBody>, ApiError> {
@@ -161,7 +209,18 @@ async fn login_one_instructor(
     Ok(response)
 }
 
-async fn get_all_subjects_for_one_instructor(
+#[utoipa::path(
+    get,
+    path = "/instructors/{instructor_id}/subjects",
+    params(
+        ("instructor_id" = Uuid, Path, description = "instructor id"),
+    ),
+    responses(
+        (status = OK, body = SubjectsListResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn get_all_subjects_for_one(
     State(repo): State<DynSubjectsRepo>,
     Path(instructor_id): Path<Uuid>,
     claimes: Claims,
@@ -186,7 +245,19 @@ async fn get_all_subjects_for_one_instructor(
     Ok(response)
 }
 
-async fn get_one_subject_for_one_instructor(
+#[utoipa::path(
+    get,
+    path = "/instructors/{instructor_id}/subjects/{subject_id}",
+    params(
+        ("instructor_id" = Uuid, Path, description = "instructor id"),
+        ("subject_id" = Uuid, Path, description = "subject id"),
+    ),
+    responses(
+        (status = OK, body = SubjectResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn get_one_subject_for_one(
     State(repo): State<DynSubjectsRepo>,
     Path((instructor_id, subject_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,
@@ -216,7 +287,19 @@ async fn get_one_subject_for_one_instructor(
     Ok(response)
 }
 
-async fn put_one_subject_to_one_instructor(
+#[utoipa::path(
+    put,
+    path = "/instructors/{instructor_id}/subjects/{subject_id}",
+    params(
+        ("instructor_id" = Uuid, Path, description = "instructor id"),
+        ("subject_id" = Uuid, Path, description = "subject id"),
+    ),
+    responses(
+        (status = OK, body = SubjectResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn put_one_subject_to_one(
     State(repo): State<DynSubjectsRepo>,
     Path((instructor_id, subject_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,
@@ -241,7 +324,19 @@ async fn put_one_subject_to_one_instructor(
     Ok(response)
 }
 
-async fn delete_one_subject_from_one_instructor(
+#[utoipa::path(
+    delete,
+    path = "/instructors/{instructor_id}/subjects/{subject_id}",
+    params(
+        ("instructor_id" = Uuid, Path, description = "instructor id"),
+        ("subject_id" = Uuid, Path, description = "subject id"),
+    ),
+    responses(
+        (status = OK, body = SubjectResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn delete_one_subject_from_one(
     State(repo): State<DynSubjectsRepo>,
     Path((instructor_id, subject_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,

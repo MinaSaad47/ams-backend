@@ -19,11 +19,19 @@ pub struct AdminsState {
 
 pub fn routes(admins_state: AdminsState) -> Router {
     Router::new()
-        .route("/admins/login", post(login_one_admin))
+        .route("/admins/login", post(login))
         .with_state(admins_state)
 }
 
-async fn login_one_admin(
+#[utoipa::path(
+    post,
+    path = "/admins/login",
+    request_body = AuthPayload,
+    responses(
+        (status = OK, body = AuthResponse)
+    ),
+)]
+async fn login(
     State(repo): State<DynAdminsRepo>,
     Json(payload): Json<AuthPayload>,
 ) -> Result<AppResponse<AuthBody>, ApiError> {

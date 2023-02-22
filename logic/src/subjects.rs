@@ -5,6 +5,7 @@ use sea_orm::{
     RelationTrait, Set,
 };
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
@@ -164,7 +165,8 @@ impl SubjectsRepoTrait for SubjectsRepository {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Deserialize, Serialize, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Subject {
     pub id: Uuid,
     pub name: String,

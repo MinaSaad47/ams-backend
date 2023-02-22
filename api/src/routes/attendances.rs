@@ -22,18 +22,23 @@ pub struct AttandancesState {
 
 pub fn routes(attendances_state: AttandancesState) -> Router {
     Router::new()
-        .route(
-            "/attendances/subjects/<id>",
-            get(get_all_attendances_for_one_subject),
-        )
-        .route(
-            "/attendances/subjects/<id>/attendees/<id>",
-            put(create_one_attendance_for_one_subject_and_one_attendee),
-        )
+        .route("/attendances/subjects/<id>", get(get_all_for_one_subject))
+        .route("/attendances/subjects/<id>/attendees/<id>", put(create_one))
         .with_state(attendances_state)
 }
 
-pub async fn get_all_attendances_for_one_subject(
+#[utoipa::path(
+    get,
+    path = "/attendances/subjects/{id}",
+    params(
+        ("id" = Uuid, Path, description = "subject id"),
+    ),
+    responses(
+        (status = OK, body = AttendancesListResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+pub async fn get_all_for_one_subject(
     State(attendances_repo): State<DynAttendancesRepo>,
     State(subjects_repo): State<DynSubjectsRepo>,
     Path(id): Path<Uuid>,
@@ -62,7 +67,19 @@ pub async fn get_all_attendances_for_one_subject(
     Ok(response)
 }
 
-pub async fn create_one_attendance_for_one_subject_and_one_attendee(
+#[utoipa::path(
+    post,
+    path = "/attendances/subjects/{subject_id}/attendees/{attendee_id}",
+    params(
+        ("subject_id" = Uuid, Path, description = "subject id"),
+        ("attendee_id" = Uuid, Path, description = "attendee id"),
+    ),
+    responses(
+        (status = OK, body = AttendanceResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+pub async fn create_one(
     State(repo): State<DynAttendancesRepo>,
     Path((subject_id, attendee_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,

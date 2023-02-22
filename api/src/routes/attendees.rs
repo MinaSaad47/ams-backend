@@ -33,33 +33,24 @@ pub struct AttendeesState {
 
 pub fn routes(attendees_state: AttendeesState) -> Router {
     Router::new()
-        .route(
-            "/attendees",
-            get(get_all_attendees).post(create_one_attendee),
-        )
+        .route("/attendees", get(get_all).post(create_one))
         .route(
             "/attendees/:id",
-            get(get_one_attendee)
-                .patch(update_one_attendee)
-                .delete(delete_one_attendee),
+            get(get_one).patch(update_one).delete(delete_one),
         )
         .route("/attendees/:id/image", post(upload_image))
-        .route(
-            "/attendees/<id>/subjects",
-            post(get_all_subjects_for_one_attendee),
-        )
+        .route("/attendees/<id>/subjects", post(get_all_subjects_for_one))
         .route(
             "/attendees/<id>/subjects/<id>",
-            get(get_one_subject_for_one_attendee)
-                .put(put_one_subject_to_one_attendee)
-                .delete(delete_one_subject_from_one_attendee),
+            get(get_one_subject_for_one)
+                .put(put_one_subject_to_one)
+                .delete(delete_one_subject_from_one),
         )
-        .route("/attendees/<id>/subjects/<id>", post(login_one_attendee))
         .route(
             "/attendees/<id>/subjects/<id>/attendances",
             get(get_all_attendances_with_one_attendee_and_one_subject),
         )
-        .route("/attendees/login", post(login_one_attendee))
+        .route("/attendees/login", post(login))
         .with_state(attendees_state)
 }
 
@@ -67,7 +58,15 @@ pub fn routes(attendees_state: AttendeesState) -> Router {
 * Attendees Routes
 */
 
-async fn get_all_attendees(
+#[utoipa::path(
+    get,
+    path = "/attendees",
+    responses(
+        (status = OK, body = AttendeesListResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn get_all(
     State(repo): State<DynAttendeesRepo>,
     claimes: Claims,
     multipart: Option<Multipart>,
@@ -116,7 +115,16 @@ async fn get_all_attendees(
     Ok(response)
 }
 
-async fn create_one_attendee(
+#[utoipa::path(
+    post,
+    path = "/attendees",
+    request_body = CreateAttendee,
+    responses(
+        (status = CREATED, body = AttendeeResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn create_one(
     State(repo): State<DynAttendeesRepo>,
     claimes: Claims,
     Json(attendee): Json<CreateAttendee>,
@@ -131,7 +139,18 @@ async fn create_one_attendee(
     Ok(response)
 }
 
-async fn get_one_attendee(
+#[utoipa::path(
+    get,
+    path = "/attendees/{id}",
+    params(
+        ("id" = Uuid, Path, description = "instructor id"),
+    ),
+    responses(
+        (status = CREATED, body = AttendeeResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn get_one(
     State(repo): State<DynAttendeesRepo>,
     Path(id): Path<Uuid>,
     claimes: Claims,
@@ -150,7 +169,19 @@ async fn get_one_attendee(
     Ok(response)
 }
 
-async fn update_one_attendee(
+#[utoipa::path(
+    patch,
+    path = "/attendees/{id}",
+    params(
+        ("id" = Uuid, Path, description = "instructor id"),
+    ),
+    request_body = UpdateAttendee,
+    responses(
+        (status = OK, body = AttendeeResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn update_one(
     State(repo): State<DynAttendeesRepo>,
     Path(id): Path<Uuid>,
     claimes: Claims,
@@ -166,7 +197,18 @@ async fn update_one_attendee(
     Ok(response)
 }
 
-async fn delete_one_attendee(
+#[utoipa::path(
+    delete,
+    path = "/attendees/{id}",
+    params(
+        ("id" = Uuid, Path, description = "instructor id"),
+    ),
+    responses(
+        (status = OK)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn delete_one(
     State(repo): State<DynAttendeesRepo>,
     Path(id): Path<Uuid>,
     claimes: Claims,
@@ -181,7 +223,16 @@ async fn delete_one_attendee(
     Ok(response)
 }
 
-async fn login_one_attendee(
+#[utoipa::path(
+    delete,
+    path = "/attendees/login",
+    request_body = AuthPayload,
+    responses(
+        (status = OK, body = AuthResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn login(
     State(repo): State<DynAttendeesRepo>,
     Json(payload): Json<AuthPayload>,
 ) -> Result<AppResponse<AuthBody>, ApiError> {
@@ -204,7 +255,18 @@ async fn login_one_attendee(
     Ok(response)
 }
 
-async fn get_all_subjects_for_one_attendee(
+#[utoipa::path(
+    get,
+    path = "/attendees/{attendee_id}/subjects",
+    params(
+        ("attendee_id" = Uuid, Path, description = "instructor id"),
+    ),
+    responses(
+        (status = OK, body = SubjectsListResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn get_all_subjects_for_one(
     State(repo): State<DynSubjectsRepo>,
     Path(attendee_id): Path<Uuid>,
     claimes: Claims,
@@ -229,7 +291,19 @@ async fn get_all_subjects_for_one_attendee(
     Ok(response)
 }
 
-async fn get_one_subject_for_one_attendee(
+#[utoipa::path(
+    get,
+    path = "/attendees/{attendee_id}/subjects/{subject_id}",
+    params(
+        ("attendee_id" = Uuid, Path, description = "instructor id"),
+        ("subject_id" = Uuid, Path, description = "subject id"),
+    ),
+    responses(
+        (status = OK, body = SubjectResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn get_one_subject_for_one(
     State(repo): State<DynSubjectsRepo>,
     Path((attendee_id, subject_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,
@@ -259,7 +333,19 @@ async fn get_one_subject_for_one_attendee(
     Ok(response)
 }
 
-async fn put_one_subject_to_one_attendee(
+#[utoipa::path(
+    put,
+    path = "/attendees/{attendee_id}/subjects/{subject_id}",
+    params(
+        ("attendee_id" = Uuid, Path, description = "instructor id"),
+        ("subject_id" = Uuid, Path, description = "subject id"),
+    ),
+    responses(
+        (status = OK, body = SubjectResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn put_one_subject_to_one(
     State(repo): State<DynSubjectsRepo>,
     Path((attendee_id, subject_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,
@@ -274,7 +360,19 @@ async fn put_one_subject_to_one_attendee(
     Ok(response)
 }
 
-async fn delete_one_subject_from_one_attendee(
+#[utoipa::path(
+    delete,
+    path = "/attendees/{attendee_id}/subjects/{subject_id}",
+    params(
+        ("attendee_id" = Uuid, Path, description = "instructor id"),
+        ("subject_id" = Uuid, Path, description = "subject id"),
+    ),
+    responses(
+        (status = OK, body = SubjectResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn delete_one_subject_from_one(
     State(repo): State<DynSubjectsRepo>,
     Path((attendee_id, subject_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,

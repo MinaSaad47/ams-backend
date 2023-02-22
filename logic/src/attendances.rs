@@ -4,6 +4,7 @@ use sea_orm::{
     EntityTrait, LoaderTrait, ModelTrait, QueryFilter, QueryTrait, Set,
 };
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
@@ -126,7 +127,7 @@ impl AttendancesRepoTrait for AttendancesRepo {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Deserialize, Serialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Attendance {
     pub id: Uuid,

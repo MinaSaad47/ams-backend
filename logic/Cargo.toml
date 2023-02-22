@@ -17,3 +17,5 @@ itertools = "0.10.5"
 mockall = {workspace = true}
 thiserror = {workspace = true}
 sqlx = { version = "0.6.2", features = ["postgres"] }
+serde_json = {workspace = true}
+utoipa = { workspace = true }

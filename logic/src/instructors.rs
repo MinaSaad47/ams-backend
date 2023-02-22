@@ -4,6 +4,7 @@ use sea_orm::{
     EntityTrait, QueryFilter, Set,
 };
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{database::instructors, error::RepoError};
@@ -110,7 +111,8 @@ impl InstructorsRepoTrait for InstructorsRepo {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Deserialize, Serialize, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Instructor {
     pub id: Uuid,
     pub number: i64,
@@ -146,20 +148,28 @@ impl From<instructors::Model> for Instructor {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateInstructor {
+    #[schema(example = "Mina Instructor")]
     name: String,
+    #[schema(example = "MinaInstructor@outlook.com")]
     email: String,
+    #[schema(example = "12345678")]
     password: String,
+    #[schema(example = 13213321)]
     number: i64,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateInstructor {
+    #[schema(example = "Emil Instructor")]
     name: Option<String>,
+    #[schema(example = "EmilInstructor@outlook.com")]
     email: Option<String>,
+    #[schema(example = "12345678")]
     password: Option<String>,
+    #[schema(example = 3232323)]
     number: Option<i64>,
 }

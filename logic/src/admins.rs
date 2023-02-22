@@ -5,6 +5,7 @@ use sea_orm::{
     prelude::async_trait::async_trait, ActiveModelTrait, DatabaseConnection, EntityTrait, Set,
 };
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{database::admins, error::RepoError};
@@ -70,7 +71,8 @@ impl AdminsRepoTrait for AdminsRepo {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Deserialize, Serialize, Debug, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Admin {
     pub id: Uuid,
     pub name: String,
@@ -102,7 +104,7 @@ impl From<admins::Model> for Admin {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateAdmin {
     name: String,

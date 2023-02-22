@@ -1,12 +1,41 @@
 use axum::{http::StatusCode, response::IntoResponse, Json};
+use logic::{
+    admins::Admin, attendances::Attendance, attendees::Attendee, instructors::Instructor,
+    subjects::Subject,
+};
 use sea_orm::sea_query::tests_cfg::json;
 use serde::Serialize;
+use utoipa::ToSchema;
 
-#[derive(Debug)]
+use crate::auth::AuthBody;
+
+#[derive(Debug, ToSchema, Serialize)]
+pub struct AttendeesList(#[schema(inline)] Vec<Instructor>);
+#[derive(Debug, ToSchema, Serialize)]
+pub struct InstructorsList(#[schema(inline)] Vec<Instructor>);
+#[derive(Debug, ToSchema, Serialize)]
+pub struct SubjectsList(#[schema(inline)] Vec<Subject>);
+#[derive(Debug, ToSchema, Serialize)]
+pub struct AttendancesList(#[schema(inline)] Vec<Attendance>);
+
+#[derive(Debug, ToSchema)]
+#[aliases(
+    AuthResponse = AppResponse<AuthBody>,
+    AdminResponse = AppResponse<Admin>,
+    InstructorResponse = AppResponse<Instructor>,
+    InstructorsListResponse = AppResponse<InstructorsList>,
+    AttendeeResponse = AppResponse<Attendee>,
+    AttendeesListResponse = AppResponse<AttendeesList>,
+    SubjectResponse = AppResponse<Subject>,
+    SubjectsListResponse = AppResponse<SubjectsList>,
+    AttendanceResponse = AppResponse<Attendance>,
+    AttendancesListResponse = AppResponse<AttendancesList>
+)]
 pub struct AppResponse<Data>
 where
     Data: Serialize,
 {
+    #[schema(value_type = i16, example = 200)]
     pub code: StatusCode,
     pub message: String,
     pub data: Option<Data>,
