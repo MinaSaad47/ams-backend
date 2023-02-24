@@ -13,7 +13,7 @@ use logic::{
     error::RepoError,
     subjects::{Subject, SubjectsFilter},
 };
-use nn_model::Embbedding;
+use nn_model::Embedding;
 use tokio::fs;
 use uuid::Uuid;
 
@@ -78,25 +78,30 @@ async fn get_all(
     let mut attendees = repo.get_all().await?;
 
     if let Some(mut multipart) = multipart {
-        let Ok(Some(field)) = multipart.next_field().await  else {
+        let Ok(Some(field)) = multipart.next_field().await else {
             return Err(ApiError::Unknown);
         } ;
 
         let image_path = env::temp_dir().join("image.png");
 
-        fs::write(&image_path, field.bytes().await.unwrap())
-            .await
-            .unwrap();
+        fs::write(
+            &image_path,
+            field.bytes().await.map_err(|_| ApiError::Unknown)?,
+        )
+        .await?;
 
-        let embedding: Vec<f64> = Embbedding::from_image(image_path.to_str().unwrap())
-            .await
-            .unwrap();
+        let embedding: Vec<f64> =
+            Embedding::from_image(image_path.to_str().ok_or(ApiError::Unknown)?).await?;
 
         let mut attendees_embeddings: Vec<(Attendee, f64)> = attendees
             .into_iter()
             .filter(|attendee| attendee.embedding.is_some())
             .map(|attendee| {
-                let distance = attendee.embedding.as_ref().unwrap().distance(&embedding);
+                let distance = attendee
+                    .embedding
+                    .as_ref()
+                    .expect("filtered attendees without embedding")
+                    .distance(&embedding);
                 (attendee, distance)
             })
             .filter(|(_, distance)| distance < &0.6)
@@ -423,11 +428,13 @@ async fn upload_image(
 
     let image_path = env::temp_dir().join("image.png");
 
-    fs::write(&image_path, field.bytes().await.unwrap())
-        .await
-        .unwrap();
+    fs::write(
+        &image_path,
+        field.bytes().await.map_err(|_| ApiError::Unknown)?,
+    )
+    .await?;
 
-    let embedding = Vec::from_image(image_path.to_str().unwrap()).await.unwrap();
+    let embedding = Vec::from_image(image_path.to_str().ok_or(ApiError::Unknown)?).await?;
 
     repo.update(
         id,

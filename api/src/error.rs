@@ -1,26 +1,21 @@
 use axum::{http::StatusCode, response::IntoResponse, Json};
 use logic::error::RepoError;
+use nn_model::EmbeddingError;
 use sea_orm::sea_query::tests_cfg::json;
+use thiserror::Error;
+use tokio::io;
 
 use crate::auth::AuthError;
 
 #[allow(dead_code)]
+#[derive(Error, Debug)]
+#[error("api error")]
 pub enum ApiError {
-    RepoError(RepoError),
-    AuthError(AuthError),
+    RepoError(#[from] RepoError),
+    AuthError(#[from] AuthError),
+    EmbeddingError(#[from] EmbeddingError),
+    IOError(#[from] io::Error),
     Unknown,
-}
-
-impl From<RepoError> for ApiError {
-    fn from(inner: RepoError) -> Self {
-        ApiError::RepoError(inner)
-    }
-}
-
-impl From<AuthError> for ApiError {
-    fn from(inner: AuthError) -> Self {
-        ApiError::AuthError(inner)
-    }
 }
 
 impl IntoResponse for ApiError {
@@ -40,10 +35,6 @@ impl IntoResponse for ApiError {
                     Json(json!({"status": false, "message": "internal server error"})),
                 ),
             },
-            ApiError::Unknown => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"status": false, "message": "internal server error"})),
-            ),
             ApiError::AuthError(error) => {
                 let code = match error {
                     AuthError::WrongCredentials => StatusCode::UNAUTHORIZED,
@@ -59,6 +50,14 @@ impl IntoResponse for ApiError {
                     ),
                 )
             }
+            ApiError::EmbeddingError(error) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"status": false, "message": error.to_string()})),
+            ),
+            _ => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"status": false, "message": "internal server error"})),
+            ),
         };
 
         (status, response).into_response()

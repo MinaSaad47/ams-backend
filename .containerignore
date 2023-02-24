@@ -1,0 +1,5 @@
+./target
+./nn-model/model
+.gitignore
+container-compose.yaml
+Containerfile

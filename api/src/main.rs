@@ -1,14 +1,30 @@
-use std::{net::SocketAddr, sync::Arc};
-
-use axum::Router;
-
 mod auth;
 mod error;
 mod openapi_doc;
 mod response;
 mod routes;
 
+use std::{net::SocketAddr, sync::Arc};
+
+use axum::Router;
+use dotenvy::dotenv;
 use dotenvy_macro::dotenv;
+use openapi_doc::ApiDoc;
+use sea_orm::Database;
+use tower::ServiceBuilder;
+use tower_http::{
+    compression::CompressionLayer, normalize_path::NormalizePathLayer, trace::TraceLayer,
+};
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
+
+use crate::routes::{
+    admins::{self, AdminsState},
+    attendances,
+    attendees::{self, AttendeesState},
+    instructors::{self, InstructorsState},
+    subjects,
+};
 use logic::{
     admins::{AdminsRepo, AdminsRepoTrait},
     attendances::{AttendancesRepo, AttendancesRepoTrait},
@@ -16,20 +32,6 @@ use logic::{
     instructors::{InstructorsRepo, InstructorsRepoTrait},
     subjects::{SubjectsRepoTrait, SubjectsRepository},
 };
-use openapi_doc::ApiDoc;
-use routes::{
-    admins::{self, AdminsState},
-    attendances,
-    attendees::{self, AttendeesState},
-    instructors::{self, InstructorsState},
-    subjects,
-};
-use sea_orm::Database;
-use tower_http::trace::TraceLayer;
-
-use dotenvy::dotenv;
-use utoipa::OpenApi;
-use utoipa_swagger_ui::SwaggerUi;
 
 pub type DynAdminsRepo = Arc<dyn AdminsRepoTrait + Send + Sync>;
 pub type DynInstructorsRepo = Arc<dyn InstructorsRepoTrait + Send + Sync>;
@@ -42,6 +44,7 @@ async fn main() {
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)
         .with_test_writer()
+        .pretty()
         .init();
 
     dotenv().ok();
@@ -80,7 +83,12 @@ async fn main() {
                 }))
                 .merge(subjects::routes(subjects_repo.clone())),
         )
-        .layer(TraceLayer::new_for_http());
+        .layer(
+            ServiceBuilder::new()
+                .layer(TraceLayer::new_for_http())
+                .layer(NormalizePathLayer::trim_trailing_slash())
+                .layer(CompressionLayer::new()),
+        );
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     axum::Server::bind(&addr)
