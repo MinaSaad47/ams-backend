@@ -49,7 +49,7 @@ async fn main() {
         .await
         .expect("posgresql connection");
 
-    let admins_repo = Arc::new(AdminsRepo(db.clone()));
+    let admins_repo = Arc::new(AdminsRepoPg(db.clone()));
     let instructors_repo = Arc::new(InstructorsRepo(db.clone()));
     let attendees_repo = Arc::new(AttendeesRepo(db.clone()));
     let subjects_repo = Arc::new(SubjectsRepository(db.clone()));

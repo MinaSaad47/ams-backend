@@ -1,27 +1,6 @@
-use chrono::{DateTime, FixedOffset};
-use sea_orm::{
-    prelude::async_trait::async_trait, ActiveModelTrait, ColumnTrait, DatabaseConnection,
-    EntityTrait, QueryFilter, Set,
-};
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
-use uuid::Uuid;
+use sea_orm::Set;
 
-use crate::{database::instructors, error::RepoError};
-
-#[async_trait]
-pub trait InstructorsRepoTrait {
-    async fn create(&self, instructor: CreateInstructor) -> Result<Instructor, RepoError>;
-    async fn update(
-        &self,
-        id: Uuid,
-        update_instructor: UpdateInstructor,
-    ) -> Result<Instructor, RepoError>;
-    async fn get_by_id(&self, id: Uuid) -> Result<Instructor, RepoError>;
-    async fn get_by_email(&self, email: String) -> Result<Instructor, RepoError>;
-    async fn get_all(&self) -> Result<Vec<Instructor>, RepoError>;
-    async fn delete_by_id(&self, id: Uuid) -> Result<(), RepoError>;
-}
+use super::*;
 
 pub struct InstructorsRepo(pub DatabaseConnection);
 
@@ -108,67 +87,4 @@ impl InstructorsRepoTrait for InstructorsRepo {
             .await?;
         Ok(())
     }
-}
-
-#[derive(Deserialize, Serialize, Debug, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct Instructor {
-    pub id: Uuid,
-    pub number: i64,
-    pub name: String,
-    pub email: String,
-    #[serde(skip)]
-    pub password: String,
-    pub create_at: DateTime<FixedOffset>,
-    pub updated_at: DateTime<FixedOffset>,
-}
-
-impl From<instructors::Model> for Instructor {
-    fn from(
-        instructors::Model {
-            id,
-            number,
-            name,
-            email,
-            password,
-            create_at,
-            updated_at,
-        }: instructors::Model,
-    ) -> Self {
-        Self {
-            id,
-            name,
-            number,
-            email,
-            password,
-            create_at,
-            updated_at,
-        }
-    }
-}
-
-#[derive(Deserialize, Serialize, Debug, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct CreateInstructor {
-    #[schema(example = "Mina Instructor")]
-    name: String,
-    #[schema(example = "MinaInstructor@outlook.com")]
-    email: String,
-    #[schema(example = "12345678")]
-    password: String,
-    #[schema(example = 13213321)]
-    number: i64,
-}
-
-#[derive(Deserialize, Serialize, Debug, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateInstructor {
-    #[schema(example = "Emil Instructor")]
-    name: Option<String>,
-    #[schema(example = "EmilInstructor@outlook.com")]
-    email: Option<String>,
-    #[schema(example = "12345678")]
-    password: Option<String>,
-    #[schema(example = 3232323)]
-    number: Option<i64>,
 }

@@ -1,30 +1,12 @@
-use chrono::{DateTime, FixedOffset};
 use sea_orm::{
-    prelude::async_trait::async_trait, ActiveModelTrait, ColumnTrait, DatabaseConnection,
-    EntityTrait, JoinType, LoaderTrait, ModelTrait, QueryFilter, QuerySelect, QueryTrait,
-    RelationTrait, Set,
+    prelude::{async_trait::async_trait, *},
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, JoinType, QueryFilter,
+    QuerySelect, QueryTrait, Set,
 };
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 use uuid::Uuid;
 
-use crate::{
-    database::{attendees, attendees_subjects, instructors, subjects},
-    error::RepoError,
-    instructors::Instructor,
-};
-
-#[cfg_attr(test, mockall::automock)]
-#[async_trait]
-pub trait SubjectsRepoTrait {
-    async fn create(&self, subject: CreateSubject) -> Result<Subject, RepoError>;
-    async fn get_by_id(&self, id: Uuid) -> Result<Subject, RepoError>;
-    async fn get(&self, filter: SubjectsFilter) -> Result<Vec<Subject>, RepoError>;
-    async fn update(&self, id: Uuid, update_subject: UpdateSubject) -> Result<Subject, RepoError>;
-    async fn add_attendee(&self, id: Uuid, attendee_id: Uuid) -> Result<(), RepoError>;
-    async fn remove_attendee(&self, id: Uuid, attendee_id: Uuid) -> Result<(), RepoError>;
-    async fn delete_by_id(&self, id: Uuid) -> Result<(), RepoError>;
-}
+use crate::entity::{attendees, attendees_subjects, instructors, subjects};
+pub use crate::prelude::*;
 
 pub struct SubjectsRepository(pub DatabaseConnection);
 
@@ -163,64 +145,4 @@ impl SubjectsRepoTrait for SubjectsRepository {
             .await?;
         Ok(())
     }
-}
-
-#[derive(Deserialize, Serialize, Debug, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct Subject {
-    pub id: Uuid,
-    pub name: String,
-    pub instructor: Option<Instructor>,
-    pub cron_expr: String,
-    pub create_at: DateTime<FixedOffset>,
-    pub updated_at: DateTime<FixedOffset>,
-}
-
-impl From<(subjects::Model, Option<Instructor>)> for Subject {
-    fn from(
-        (
-            subjects::Model {
-                id,
-                name,
-                cron_expr,
-                create_at,
-                updated_at,
-                ..
-            },
-            instructor,
-        ): (subjects::Model, Option<Instructor>),
-    ) -> Self {
-        Self {
-            id,
-            name,
-            instructor,
-            cron_expr,
-            create_at,
-            updated_at,
-        }
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CreateSubject {
-    pub name: String,
-    pub cron_expr: String,
-}
-
-#[derive(Deserialize, Serialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateSubject {
-    pub name: Option<String>,
-    pub cron_expr: Option<String>,
-    #[serde(skip)]
-    pub instructor_id: Option<Option<Uuid>>,
-}
-
-#[derive(Default)]
-pub struct SubjectsFilter {
-    pub id: Option<Uuid>,
-    pub name: Option<String>,
-    pub instructor_id: Option<Uuid>,
-    pub attendee_id: Option<Uuid>,
 }
