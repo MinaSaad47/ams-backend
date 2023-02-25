@@ -3,14 +3,10 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-
 use jsonwebtoken::{encode, Header};
-use logic::{
-    error::RepoError,
-    instructors::{CreateInstructor, Instructor, UpdateInstructor},
-    subjects::{Subject, SubjectsFilter, UpdateSubject},
-};
 use uuid::Uuid;
+
+use logic::prelude::*;
 
 use crate::{
     auth::{AuthBody, AuthError, AuthPayload, Claims, User, KEYS},
@@ -106,18 +102,18 @@ async fn create_one(
 )]
 async fn get_one(
     State(repo): State<DynInstructorsRepo>,
-    Path(id): Path<Uuid>,
+    Path(instructor_id): Path<Uuid>,
     claimes: Claims,
 ) -> Result<AppResponse<Instructor>, ApiError> {
-    let _ = match claimes.user {
+    match claimes.user {
         User::Admin(_) => {}
-        User::Instructor(id) if id == id => {}
+        User::Instructor(id) if id == instructor_id => {}
         _ => {
             return Err(AuthError::UnauthorizedAccess.into());
         }
     };
 
-    let instructor = repo.get_by_id(id).await?;
+    let instructor = repo.get_by_id(instructor_id).await?;
     let response = AppResponse::with_content(instructor, "retreived an instructor successfully");
 
     Ok(response)
@@ -225,7 +221,7 @@ async fn get_all_subjects_for_one(
     Path(instructor_id): Path<Uuid>,
     claimes: Claims,
 ) -> Result<AppResponse<Vec<Subject>>, ApiError> {
-    let _ = match claimes.user {
+    match claimes.user {
         User::Admin(_) => {}
         User::Instructor(id) if id == instructor_id => {}
         _ => {
@@ -262,7 +258,7 @@ async fn get_one_subject_for_one(
     Path((instructor_id, subject_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,
 ) -> Result<AppResponse<Subject>, ApiError> {
-    let _ = match claimes.user {
+    match claimes.user {
         User::Admin(_) => {}
         User::Instructor(id) if id == instructor_id => {}
         _ => {
@@ -278,7 +274,7 @@ async fn get_one_subject_for_one(
         })
         .await?;
 
-    let Some(subject) = subjects.into_iter().nth(0) else {
+    let Some(subject) = subjects.into_iter().next() else {
         return Err(RepoError::NotFound("subject".to_owned()).into());
     };
 

@@ -3,6 +3,7 @@ mod error;
 mod openapi_doc;
 mod response;
 mod routes;
+mod test_utils;
 
 use std::{net::SocketAddr, sync::Arc};
 
@@ -25,13 +26,8 @@ use crate::routes::{
     instructors::{self, InstructorsState},
     subjects,
 };
-use logic::{
-    admins::{AdminsRepo, AdminsRepoTrait},
-    attendances::{AttendancesRepo, AttendancesRepoTrait},
-    attendees::{AttendeesRepo, AttendeesRepoTrait},
-    instructors::{InstructorsRepo, InstructorsRepoTrait},
-    subjects::{SubjectsRepoTrait, SubjectsRepository},
-};
+
+use logic::prelude::*;
 
 pub type DynAdminsRepo = Arc<dyn AdminsRepoTrait + Send + Sync>;
 pub type DynInstructorsRepo = Arc<dyn InstructorsRepoTrait + Send + Sync>;

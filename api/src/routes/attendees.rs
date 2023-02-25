@@ -5,17 +5,12 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-
 use jsonwebtoken::{encode, Header};
-use logic::{
-    attendances::{Attendance, AttendancesFilter},
-    attendees::{Attendee, CreateAttendee, UpdateAttendee},
-    error::RepoError,
-    subjects::{Subject, SubjectsFilter},
-};
-use nn_model::Embedding;
 use tokio::fs;
 use uuid::Uuid;
+
+use logic::prelude::*;
+use nn_model::Embedding;
 
 use crate::{
     auth::{AuthBody, AuthError, AuthPayload, Claims, User, KEYS},
@@ -34,6 +29,7 @@ pub struct AttendeesState {
 pub fn routes(attendees_state: AttendeesState) -> Router {
     Router::new()
         .route("/attendees", get(get_all).post(create_one))
+        .route("/attendees/image", post(get_all_with_image))
         .route(
             "/attendees/:id",
             get(get_one).patch(update_one).delete(delete_one),
@@ -69,51 +65,76 @@ pub fn routes(attendees_state: AttendeesState) -> Router {
 async fn get_all(
     State(repo): State<DynAttendeesRepo>,
     claimes: Claims,
+) -> Result<AppResponse<Vec<Attendee>>, ApiError> {
+    let User::Admin(_) = claimes.user else {
+        return Err(AuthError::UnauthorizedAccess.into());
+    };
+
+    let attendees = repo.get_all().await?;
+    let response = AppResponse::created(attendees, "retreived all attendees successfully");
+
+    Ok(response)
+}
+
+#[utoipa::path(
+    post,
+    path = "/attendees/image",
+    request_body(content = Image, content_type = "multipart/form-data"),
+    responses(
+        (status = OK, body = AttendeesListResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn get_all_with_image(
+    State(repo): State<DynAttendeesRepo>,
+    claimes: Claims,
     multipart: Option<Multipart>,
 ) -> Result<AppResponse<Vec<Attendee>>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
+    let Some(mut multipart) = multipart else {
+        return Err(ApiError::Unknown);
+    };
+
+    let Some(field) = multipart.next_field().await.ok().flatten() else {
+        return Err(ApiError::Unknown);
+    };
+
     let mut attendees = repo.get_all().await?;
 
-    if let Some(mut multipart) = multipart {
-        let Ok(Some(field)) = multipart.next_field().await else {
-            return Err(ApiError::Unknown);
-        } ;
+    let image_path = env::temp_dir().join("image.png");
 
-        let image_path = env::temp_dir().join("image.png");
+    fs::write(
+        &image_path,
+        field.bytes().await.map_err(|_| ApiError::Unknown)?,
+    )
+    .await?;
 
-        fs::write(
-            &image_path,
-            field.bytes().await.map_err(|_| ApiError::Unknown)?,
-        )
-        .await?;
+    let embedding: Vec<f64> =
+        Embedding::from_image(image_path.to_str().ok_or(ApiError::Unknown)?).await?;
 
-        let embedding: Vec<f64> =
-            Embedding::from_image(image_path.to_str().ok_or(ApiError::Unknown)?).await?;
+    let mut attendees_embeddings: Vec<(Attendee, f64)> = attendees
+        .into_iter()
+        .filter(|attendee| attendee.embedding.is_some())
+        .map(|attendee| {
+            let distance = attendee
+                .embedding
+                .as_ref()
+                .expect("filtered attendees without embedding")
+                .distance(&embedding);
+            (attendee, distance)
+        })
+        .filter(|(_, distance)| distance < &0.6)
+        .collect();
 
-        let mut attendees_embeddings: Vec<(Attendee, f64)> = attendees
-            .into_iter()
-            .filter(|attendee| attendee.embedding.is_some())
-            .map(|attendee| {
-                let distance = attendee
-                    .embedding
-                    .as_ref()
-                    .expect("filtered attendees without embedding")
-                    .distance(&embedding);
-                (attendee, distance)
-            })
-            .filter(|(_, distance)| distance < &0.6)
-            .collect();
+    attendees_embeddings.sort_by(|attendee1, attendee2| attendee1.1.total_cmp(&attendee2.1));
 
-        attendees_embeddings.sort_by(|attendee1, attendee2| attendee1.1.total_cmp(&attendee2.1));
-
-        attendees = attendees_embeddings
-            .into_iter()
-            .map(|(attendee, _)| attendee)
-            .collect();
-    };
+    attendees = attendees_embeddings
+        .into_iter()
+        .map(|(attendee, _)| attendee)
+        .collect();
 
     let response = AppResponse::created(attendees, "retreived all attendees successfully");
 
@@ -148,7 +169,7 @@ async fn create_one(
     get,
     path = "/attendees/{id}",
     params(
-        ("id" = Uuid, Path, description = "instructor id"),
+        ("id" = Uuid, Path, description = "attendee id"),
     ),
     responses(
         (status = CREATED, body = AttendeeResponse)
@@ -157,18 +178,18 @@ async fn create_one(
 )]
 async fn get_one(
     State(repo): State<DynAttendeesRepo>,
-    Path(id): Path<Uuid>,
+    Path(attendee_id): Path<Uuid>,
     claimes: Claims,
 ) -> Result<AppResponse<Attendee>, ApiError> {
-    let _ = match claimes.user {
+    match claimes.user {
         User::Admin(_) => {}
-        User::Attendee(id) if id == id => {}
+        User::Attendee(id) if id == attendee_id => {}
         _ => {
             return Err(AuthError::UnauthorizedAccess.into());
         }
     };
 
-    let attendee = repo.get_by_id(id).await?;
+    let attendee = repo.get_by_id(attendee_id).await?;
     let response = AppResponse::with_content(attendee, "retreived an attendee successfully");
 
     Ok(response)
@@ -178,7 +199,7 @@ async fn get_one(
     patch,
     path = "/attendees/{id}",
     params(
-        ("id" = Uuid, Path, description = "instructor id"),
+        ("id" = Uuid, Path, description = "attendee id"),
     ),
     request_body = UpdateAttendee,
     responses(
@@ -206,7 +227,7 @@ async fn update_one(
     delete,
     path = "/attendees/{id}",
     params(
-        ("id" = Uuid, Path, description = "instructor id"),
+        ("id" = Uuid, Path, description = "attendee id"),
     ),
     responses(
         (status = OK)
@@ -223,7 +244,7 @@ async fn delete_one(
     };
 
     repo.delete_by_id(id).await?;
-    let response = AppResponse::no_content("deleted one instructor successfully");
+    let response = AppResponse::no_content("deleted one attendee successfully");
 
     Ok(response)
 }
@@ -264,7 +285,7 @@ async fn login(
     get,
     path = "/attendees/{attendee_id}/subjects",
     params(
-        ("attendee_id" = Uuid, Path, description = "instructor id"),
+        ("attendee_id" = Uuid, Path, description = "attendee id"),
     ),
     responses(
         (status = OK, body = SubjectsListResponse)
@@ -276,7 +297,7 @@ async fn get_all_subjects_for_one(
     Path(attendee_id): Path<Uuid>,
     claimes: Claims,
 ) -> Result<AppResponse<Vec<Subject>>, ApiError> {
-    let _ = match claimes.user {
+    match claimes.user {
         User::Admin(_) => {}
         User::Instructor(id) if id == attendee_id => {}
         _ => {
@@ -300,7 +321,7 @@ async fn get_all_subjects_for_one(
     get,
     path = "/attendees/{attendee_id}/subjects/{subject_id}",
     params(
-        ("attendee_id" = Uuid, Path, description = "instructor id"),
+        ("attendee_id" = Uuid, Path, description = "attendee id"),
         ("subject_id" = Uuid, Path, description = "subject id"),
     ),
     responses(
@@ -313,7 +334,7 @@ async fn get_one_subject_for_one(
     Path((attendee_id, subject_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,
 ) -> Result<AppResponse<Subject>, ApiError> {
-    let _ = match claimes.user {
+    match claimes.user {
         User::Admin(_) => {}
         User::Instructor(id) if id == attendee_id => {}
         _ => {
@@ -329,7 +350,7 @@ async fn get_one_subject_for_one(
         })
         .await?;
 
-    let Some(subject) = subjects.into_iter().nth(0) else {
+    let Some(subject) = subjects.into_iter().next() else {
         return Err(RepoError::NotFound("subject".to_owned()).into());
     };
 
@@ -341,8 +362,9 @@ async fn get_one_subject_for_one(
 #[utoipa::path(
     put,
     path = "/attendees/{attendee_id}/subjects/{subject_id}",
+    request_body(content = Image, content_type = "multipart/form-data"),
     params(
-        ("attendee_id" = Uuid, Path, description = "instructor id"),
+        ("attendee_id" = Uuid, Path, description = "attendee id"),
         ("subject_id" = Uuid, Path, description = "subject id"),
     ),
     responses(
@@ -369,7 +391,7 @@ async fn put_one_subject_to_one(
     delete,
     path = "/attendees/{attendee_id}/subjects/{subject_id}",
     params(
-        ("attendee_id" = Uuid, Path, description = "instructor id"),
+        ("attendee_id" = Uuid, Path, description = "attendee id"),
         ("subject_id" = Uuid, Path, description = "subject id"),
     ),
     responses(
@@ -412,6 +434,18 @@ async fn get_all_attendances_with_one_attendee_and_one_subject(
     Ok(response)
 }
 
+#[utoipa::path(
+    post,
+    path = "/attendees/{id}/image",
+    params(
+        ("id" = Uuid, Path, description = "attendee id"),
+    ),
+    request_body(content = Image, content_type = "multipart/form-data"),
+    responses(
+        (status = OK, body = AttendeesListResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
 async fn upload_image(
     State(repo): State<DynAttendeesRepo>,
     Path(id): Path<Uuid>,
@@ -423,7 +457,7 @@ async fn upload_image(
     };
 
     let Ok(Some(field)) = multipart.next_field().await else {
-        return Err(ApiError::Unknown.into());
+        return Err(ApiError::Unknown);
     };
 
     let image_path = env::temp_dir().join("image.png");

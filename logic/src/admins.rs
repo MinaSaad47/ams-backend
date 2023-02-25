@@ -71,7 +71,7 @@ impl AdminsRepoTrait for AdminsRepo {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, ToSchema)]
+#[derive(Deserialize, Serialize, Debug, ToSchema, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Admin {
     pub id: Uuid,

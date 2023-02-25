@@ -31,7 +31,6 @@ impl AsRef<DatabaseConnection> for AttendeesRepo {
     }
 }
 
-#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 impl AttendeesRepoTrait for AttendeesRepo {
     async fn create(&self, attendee: CreateAttendee) -> Result<Attendee, RepoError> {
@@ -115,7 +114,7 @@ impl AttendeesRepoTrait for AttendeesRepo {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, ToSchema)]
+#[derive(Deserialize, Serialize, Debug, ToSchema, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Attendee {
     pub id: Uuid,
@@ -160,13 +159,13 @@ impl From<attendees::Model> for Attendee {
 #[serde(rename_all = "camelCase")]
 pub struct CreateAttendee {
     #[schema(example = "Mina Attedee")]
-    name: String,
+    pub name: String,
     #[schema(example = "MinaAttedee@outlook.com")]
-    email: String,
+    pub email: String,
     #[schema(example = "12345678")]
-    password: String,
+    pub password: String,
     #[schema(example = 13213321)]
-    number: i64,
+    pub number: i64,
 }
 #[derive(Deserialize, Debug, Default, ToSchema)]
 #[serde(rename_all = "camelCase")]

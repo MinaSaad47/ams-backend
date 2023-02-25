@@ -1,9 +1,10 @@
 use axum::{http::StatusCode, response::IntoResponse, Json};
-use logic::error::RepoError;
 use nn_model::EmbeddingError;
 use sea_orm::sea_query::tests_cfg::json;
 use thiserror::Error;
 use tokio::io;
+
+use logic::prelude::*;
 
 use crate::auth::AuthError;
 
@@ -45,9 +46,7 @@ impl IntoResponse for ApiError {
                 };
                 (
                     code,
-                    Json(
-                        json!({"status": false, "message": format!("auth error: {}", error.to_string())}),
-                    ),
+                    Json(json!({"status": false, "message": format!("auth error: {}", error)})),
                 )
             }
             ApiError::EmbeddingError(error) => (

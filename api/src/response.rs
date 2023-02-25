@@ -1,11 +1,9 @@
 use axum::{http::StatusCode, response::IntoResponse, Json};
-use logic::{
-    admins::Admin, attendances::Attendance, attendees::Attendee, instructors::Instructor,
-    subjects::Subject,
-};
 use sea_orm::sea_query::tests_cfg::json;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+
+use logic::prelude::*;
 
 use crate::auth::AuthBody;
 
@@ -18,7 +16,7 @@ pub struct SubjectsList(#[schema(inline)] Vec<Subject>);
 #[derive(Debug, ToSchema, Serialize)]
 pub struct AttendancesList(#[schema(inline)] Vec<Attendance>);
 
-#[derive(Debug, ToSchema)]
+#[derive(Debug, ToSchema, Serialize, Deserialize)]
 #[aliases(
     AuthResponse = AppResponse<AuthBody>,
     AdminResponse = AppResponse<Admin>,
@@ -31,12 +29,9 @@ pub struct AttendancesList(#[schema(inline)] Vec<Attendance>);
     AttendanceResponse = AppResponse<Attendance>,
     AttendancesListResponse = AppResponse<AttendancesList>
 )]
-pub struct AppResponse<Data>
-where
-    Data: Serialize,
-{
+pub struct AppResponse<Data> {
     #[schema(value_type = i16, example = 200)]
-    pub code: StatusCode,
+    pub code: u16,
     pub message: String,
     pub data: Option<Data>,
 }
@@ -47,21 +42,21 @@ where
 {
     pub fn created(data: Data, message: &str) -> Self {
         Self {
-            code: StatusCode::CREATED,
+            code: StatusCode::CREATED.into(),
             message: message.to_owned(),
             data: Some(data),
         }
     }
     pub fn no_content(message: &str) -> Self {
         Self {
-            code: StatusCode::OK,
+            code: StatusCode::OK.into(),
             message: message.to_owned(),
             data: None,
         }
     }
     pub fn with_content(data: Data, message: &str) -> Self {
         Self {
-            code: StatusCode::OK,
+            code: StatusCode::OK.into(),
             message: message.to_owned(),
             data: Some(data),
         }
@@ -74,15 +69,12 @@ where
 {
     fn into_response(self) -> axum::response::Response {
         match self.data {
-            Some(data) => {
-                Json(json!({"code": self.code.as_u16(), "status": true, "message": self.message, "data": data}))
-                    .into_response()
-            }
-            None =>  {
-
-                Json(json!({"code": self.code.as_u16(), "status": true, "message": self.message}))
-                    .into_response()
-            }
+            Some(data) => Json(
+                json!({"code": self.code, "status": true, "message": self.message, "data": data}),
+            )
+            .into_response(),
+            None => Json(json!({"code": self.code, "status": true, "message": self.message}))
+                .into_response(),
         }
     }
 }

@@ -42,8 +42,7 @@ impl AttendancesRepoTrait for AttendancesRepo {
             ..Default::default()
         }
         .insert(self.as_ref())
-        .await?
-        .into();
+        .await?;
 
         Ok(self.get_by_id(attendance.id).await?)
     }

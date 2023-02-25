@@ -3,9 +3,9 @@ use axum::{
     routing::get,
     Json, Router,
 };
-
-use logic::subjects::{CreateSubject, Subject, SubjectsFilter, UpdateSubject};
 use uuid::Uuid;
+
+use logic::prelude::*;
 
 use crate::{
     auth::{AuthError, Claims, User},

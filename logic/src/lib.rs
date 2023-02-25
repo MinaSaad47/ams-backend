@@ -4,4 +4,5 @@ pub mod attendees;
 mod database;
 pub mod error;
 pub mod instructors;
+pub mod prelude;
 pub mod subjects;

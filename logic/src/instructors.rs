@@ -31,7 +31,6 @@ impl AsRef<DatabaseConnection> for InstructorsRepo {
     }
 }
 
-#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 impl InstructorsRepoTrait for InstructorsRepo {
     async fn create(&self, instructor: CreateInstructor) -> Result<Instructor, RepoError> {

@@ -3,9 +3,9 @@ use axum::{
     routing::{get, put},
     Router,
 };
-
-use logic::attendances::{Attendance, AttendancesFilter, CreateAttendance};
 use uuid::Uuid;
+
+use logic::prelude::*;
 
 use crate::{
     auth::{AuthError, Claims, User},
@@ -44,7 +44,7 @@ pub async fn get_all_for_one_subject(
     Path(id): Path<Uuid>,
     claimes: Claims,
 ) -> Result<AppResponse<Vec<Attendance>>, ApiError> {
-    let _ = match claimes.user {
+    match claimes.user {
         User::Admin(_) => {}
         User::Instructor(id) if id == subjects_repo.get_by_id(id).await?.id => {}
         _ => {
@@ -84,7 +84,7 @@ pub async fn create_one(
     Path((subject_id, attendee_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,
 ) -> Result<AppResponse<Attendance>, ApiError> {
-    let _ = match claimes.user {
+    match claimes.user {
         User::Admin(_) => {}
         User::Instructor(id) if id == repo.get_by_id(id).await?.id => {}
         _ => {
