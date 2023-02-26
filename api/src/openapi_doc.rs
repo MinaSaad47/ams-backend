@@ -66,6 +66,8 @@ pub struct Image {
             logic::attendees::UpdateAttendee,
             logic::attendances::Attendance,
             logic::subjects::Subject,
+            logic::subjects::CreateSubject,
+            logic::subjects::UpdateSubject,
             AuthResponse,
             AdminResponse,
             InstructorsList,

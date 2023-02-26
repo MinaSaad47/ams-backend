@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use sea_orm::{
     prelude::{async_trait::async_trait, *},
     QueryTrait, Set,
@@ -5,13 +7,11 @@ use sea_orm::{
 
 use super::*;
 
-use crate::{
-    entity::attendances,
-    entity::{attendees, instructors, subjects},
-    prelude::*,
-};
+use crate::prelude::*;
 
-pub struct AttendancesRepo(pub DatabaseConnection);
+use crate::entity::{attendances, attendees, instructors, subjects};
+
+pub struct AttendancesRepo(pub Arc<DatabaseConnection>);
 
 impl AsRef<DatabaseConnection> for AttendancesRepo {
     fn as_ref(&self) -> &DatabaseConnection {

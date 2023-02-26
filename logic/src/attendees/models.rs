@@ -46,7 +46,7 @@ impl From<attendees::Model> for Attendee {
     }
 }
 
-#[derive(Deserialize, Debug, ToSchema)]
+#[derive(Deserialize, Serialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateAttendee {
     #[schema(example = "Mina Attedee")]

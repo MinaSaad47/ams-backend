@@ -55,56 +55,53 @@ async fn login(
 
 #[cfg(test)]
 mod test {
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
 
     use rstest::*;
 
     use axum::http::{Method, StatusCode};
-    use logic::prelude::*;
-
-    use mockall::predicate;
-
-    use super::*;
+    use logic::{get_testing_db, prelude::*};
 
     use crate::test_utils::*;
 
+    use super::*;
+
     #[fixture]
-    fn testing_app() -> TestingApp {
-        let dummy_admin = Admin {
-            name: "Mina Saad".to_owned(),
-            email: "mina@saad.com".to_owned(),
-            password: "474747".to_owned(),
-            ..Default::default()
-        };
-        let mut mocked_repo = MockAdminRepoStruct::new();
-        mocked_repo
-            .expect_get_by_email()
-            .with(predicate::eq("mina@saad.com".to_owned()))
-            .return_once(|_| Ok(dummy_admin));
+    #[once]
+    fn testing_app() -> Mutex<TestingApp> {
+        let db = get_testing_db(dotenvy_macro::dotenv!("DATABASE_BASE_URL"), "admin_testing");
 
-        let admins_state = AdminsState {
-            admins_repo: Arc::new(mocked_repo),
-        };
+        let admins_repo = Arc::new(AdminsRepoPg(Arc::new(db)));
 
-        TestingApp::new(routes(admins_state), "/admins")
+        let admins_state = AdminsState { admins_repo };
+
+        Mutex::new(TestingApp::new(routes(admins_state), "/admins"))
     }
 
     #[rstest]
     #[case::valid_cred("mina@saad.com", "474747")]
     #[should_panic]
-    #[case::invalid_cred("invalid", "invalid")]
-    #[tokio::test]
+    #[case::invalid_cred_password("mina@saad.com", "invalid")]
+    #[should_panic]
+    #[case::invalid_cred_email("invalid", "474747")]
+    #[should_panic]
+    #[case::invalid_cred_all("invalid", "invalid")]
+    #[tokio::test(flavor = "multi_thread")]
     #[trace]
     async fn login_test(
-        #[notrace] mut testing_app: TestingApp,
+        #[notrace] testing_app: &Mutex<TestingApp>,
         #[case] email: String,
         #[case] password: String,
     ) {
         let body = AuthPayload { email, password };
 
         let res: TestingResponse<AppResponse<AuthBody>> = testing_app
+            .lock()
+            .unwrap()
             .request("/login", Method::POST, Some(body))
             .await;
+
+        dbg!(&res);
 
         assert_eq!(res.status, StatusCode::OK);
 

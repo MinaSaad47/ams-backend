@@ -7,7 +7,9 @@ use uuid::Uuid;
 pub use impls::*;
 pub use models::*;
 
-use crate::{entity::attendees, error::RepoError};
+use crate::error::RepoError;
+
+use crate::entity::attendees;
 
 #[async_trait]
 pub trait AttendeesRepoTrait {

@@ -54,7 +54,7 @@ where
     }
 }
 
-#[derive(Serialize, Deserialize, ToResponse, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToResponse, ToSchema)]
 pub struct AuthBody {
     pub token: String,
 }

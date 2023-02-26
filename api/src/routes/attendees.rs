@@ -23,7 +23,7 @@ use crate::{
 pub struct AttendeesState {
     pub attendees_repo: DynAttendeesRepo,
     pub subjects_repo: DynSubjectsRepo,
-    pub attedances_repo: DynAttendancesRepo,
+    pub attendances_repo: DynAttendancesRepo,
 }
 
 pub fn routes(attendees_state: AttendeesState) -> Router {
@@ -35,15 +35,15 @@ pub fn routes(attendees_state: AttendeesState) -> Router {
             get(get_one).patch(update_one).delete(delete_one),
         )
         .route("/attendees/:id/image", post(upload_image))
-        .route("/attendees/<id>/subjects", post(get_all_subjects_for_one))
+        .route("/attendees/:id/subjects", get(get_all_subjects_for_one))
         .route(
-            "/attendees/<id>/subjects/<id>",
+            "/attendees/:id/subjects/:id",
             get(get_one_subject_for_one)
                 .put(put_one_subject_to_one)
                 .delete(delete_one_subject_from_one),
         )
         .route(
-            "/attendees/<id>/subjects/<id>/attendances",
+            "/attendees/:id/subjects/:id/attendances",
             get(get_all_attendances_with_one_attendee_and_one_subject),
         )
         .route("/attendees/login", post(login))
@@ -250,7 +250,7 @@ async fn delete_one(
 }
 
 #[utoipa::path(
-    delete,
+    post,
     path = "/attendees/login",
     request_body = AuthPayload,
     responses(
@@ -482,4 +482,69 @@ async fn upload_image(
     let response = AppResponse::no_content("added an image to an attendee successfully");
 
     Ok(response)
+}
+
+#[cfg(test)]
+mod test {
+    use std::sync::{Arc, Mutex};
+
+    use rstest::*;
+
+    use axum::http::{Method, StatusCode};
+    use logic::{get_testing_db, prelude::*};
+
+    use crate::test_utils::*;
+
+    use super::*;
+
+    #[fixture]
+    #[once]
+    fn testing_app() -> (Mutex<TestingApp>, String) {
+        let db = Arc::new(get_testing_db(
+            dotenvy_macro::dotenv!("DATABASE_BASE_URL"),
+            "attendee_testing",
+        ));
+
+        let attendees_repo = Arc::new(AttendeesRepo(db.clone()));
+        let attendances_repo = Arc::new(AttendancesRepo(db.clone()));
+        let subjects_repo = Arc::new(SubjectsRepository(db.clone()));
+
+        let admins_state = AttendeesState {
+            attendees_repo,
+            subjects_repo,
+            attendances_repo,
+        };
+
+        Mutex::new(TestingApp::new(routes(admins_state), "/attendees"))
+    }
+
+    #[rstest]
+    #[tokio::test(flavor = "multi_thread")]
+    #[trace]
+    async fn get_all_empty(#[notrace] testing_app: &Mutex<TestingApp>) {
+        let res: TestingResponse<Vec<Attendee>> = testing_app
+            .lock()
+            .unwrap()
+            .request(
+                "/",
+                Method::POST,
+                Some(CreateAttendee {
+                    name: "mina".to_string(),
+                    email: "mina@email.com".to_owned(),
+                    password: "pass".to_owned(),
+                    number: 213123,
+                }),
+            )
+            .await;
+
+        assert_eq!(res.status, StatusCode::OK);
+
+        let res: TestingResponse<Vec<Attendee>> = testing_app
+            .lock()
+            .unwrap()
+            .request("", Method::GET, None::<()>)
+            .await;
+
+        assert_eq!(res.status, StatusCode::NOT_FOUND);
+    }
 }

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use sea_orm::{
     prelude::{async_trait::async_trait, *},
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, JoinType, QueryFilter,
@@ -5,10 +7,11 @@ use sea_orm::{
 };
 use uuid::Uuid;
 
-use crate::entity::{attendees, attendees_subjects, instructors, subjects};
 pub use crate::prelude::*;
 
-pub struct SubjectsRepository(pub DatabaseConnection);
+use crate::entity::{attendees, attendees_subjects, instructors, subjects};
+
+pub struct SubjectsRepository(pub Arc<DatabaseConnection>);
 
 impl AsRef<DatabaseConnection> for SubjectsRepository {
     fn as_ref(&self) -> &DatabaseConnection {

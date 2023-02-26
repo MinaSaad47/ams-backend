@@ -6,7 +6,9 @@ use sea_orm::prelude::{async_trait::async_trait, *};
 pub use impls::*;
 pub use models::*;
 
-use crate::{entity::instructors, error::RepoError};
+use crate::error::RepoError;
+
+use crate::entity::instructors;
 
 #[async_trait]
 pub trait InstructorsRepoTrait {

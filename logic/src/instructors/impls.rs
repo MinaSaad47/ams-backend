@@ -1,8 +1,10 @@
+use std::sync::Arc;
+
 use sea_orm::Set;
 
 use super::*;
 
-pub struct InstructorsRepo(pub DatabaseConnection);
+pub struct InstructorsRepo(pub Arc<DatabaseConnection>);
 
 impl AsRef<DatabaseConnection> for InstructorsRepo {
     fn as_ref(&self) -> &DatabaseConnection {

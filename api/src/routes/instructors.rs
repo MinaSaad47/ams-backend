@@ -29,9 +29,9 @@ pub fn routes(instructors_state: InstructorsState) -> Router {
             "/instructors/:id",
             get(get_one).patch(update_one).delete(delete_one),
         )
-        .route("/instructors/<id>/subjects", post(get_all_subjects_for_one))
+        .route("/instructors/:id/subjects", get(get_all_subjects_for_one))
         .route(
-            "/instructors/<id>/subjects/<id>",
+            "/instructors/:id/subjects/:id",
             get(get_one_subject_for_one)
                 .put(put_one_subject_to_one)
                 .delete(delete_one_subject_from_one),
@@ -174,7 +174,7 @@ async fn delete_one(
 }
 
 #[utoipa::path(
-    delete,
+    post,
     path = "/instructors/login",
     request_body = AuthPayload,
     responses(

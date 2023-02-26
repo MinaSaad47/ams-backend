@@ -1,14 +1,18 @@
+use std::sync::Arc;
+
 use sea_orm::{
     prelude::{async_trait::async_trait, *},
     Set,
 };
 use uuid::Uuid;
 
-use crate::{entity::admins, prelude::RepoError};
+use crate::entity::admins;
 
 use super::{models::*, AdminsRepoTrait};
 
-pub struct AdminsRepoPg(pub DatabaseConnection);
+use crate::prelude::RepoError;
+
+pub struct AdminsRepoPg(pub Arc<DatabaseConnection>);
 
 impl AsRef<DatabaseConnection> for AdminsRepoPg {
     fn as_ref(&self) -> &DatabaseConnection {

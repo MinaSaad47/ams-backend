@@ -3,7 +3,9 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use crate::{entity::subjects, prelude::*};
+use crate::prelude::*;
+
+use crate::entity::subjects;
 
 #[derive(Deserialize, Serialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -41,17 +43,21 @@ impl From<(subjects::Model, Option<Instructor>)> for Subject {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateSubject {
+    #[schema(example = "intro to computer science")]
     pub name: String,
+    #[schema(example = "* * * * *")]
     pub cron_expr: String,
 }
 
-#[derive(Deserialize, Serialize, Default)]
+#[derive(Deserialize, Serialize, Default, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSubject {
+    #[schema(example = "updated intro to computer science")]
     pub name: Option<String>,
+    #[schema(example = "* * * * *")]
     pub cron_expr: Option<String>,
     #[serde(skip)]
     pub instructor_id: Option<Option<Uuid>>,

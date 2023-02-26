@@ -1,8 +1,10 @@
+use std::sync::Arc;
+
 use sea_orm::{prelude::*, Set};
 
 use super::*;
 
-pub struct AttendeesRepo(pub DatabaseConnection);
+pub struct AttendeesRepo(pub Arc<DatabaseConnection>);
 
 impl AsRef<DatabaseConnection> for AttendeesRepo {
     fn as_ref(&self) -> &DatabaseConnection {

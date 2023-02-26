@@ -45,9 +45,11 @@ async fn main() {
 
     dotenv().ok();
 
-    let db = Database::connect(dotenv!("DATABASE_URL"))
-        .await
-        .expect("posgresql connection");
+    let db = Arc::new(
+        Database::connect(dotenv!("DATABASE_URL"))
+            .await
+            .expect("posgresql connection"),
+    );
 
     let admins_repo = Arc::new(AdminsRepoPg(db.clone()));
     let instructors_repo = Arc::new(InstructorsRepo(db.clone()));
@@ -75,7 +77,7 @@ async fn main() {
                 .merge(attendees::routes(AttendeesState {
                     attendees_repo: attendees_repo.clone(),
                     subjects_repo: subjects_repo.clone(),
-                    attedances_repo: attendances_repo.clone(),
+                    attendances_repo: attendances_repo.clone(),
                 }))
                 .merge(subjects::routes(subjects_repo.clone())),
         )
