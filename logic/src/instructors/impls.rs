@@ -75,13 +75,17 @@ impl InstructorsRepoTrait for InstructorsRepo {
             .into())
     }
     async fn get_all(&self) -> Result<Vec<Instructor>, RepoError> {
-        Ok(instructors::Entity::find()
+        let collection: Vec<Instructor> = instructors::Entity::find()
             .all(self.as_ref())
-            .await
+            .await?
             .into_iter()
-            .flatten()
             .map(Instructor::from)
-            .collect())
+            .collect();
+        if collection.is_empty() {
+            Err(RepoError::NotFound("instructors".to_owned()))
+        } else {
+            Ok(collection)
+        }
     }
     async fn delete_by_id(&self, id: Uuid) -> Result<(), RepoError> {
         instructors::Entity::delete_by_id(id)

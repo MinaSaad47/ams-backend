@@ -47,10 +47,13 @@ impl AttendancesRepoTrait for AttendancesRepo {
                 query.filter(attendances::Column::SubjectId.eq(attendee))
             })
             .all(self.as_ref())
-            .await
+            .await?
             .into_iter()
-            .flatten()
             .collect();
+
+        if attendances.is_empty() {
+            return Err(RepoError::NotFound("attendances".to_owned()));
+        }
 
         let attendees = attendances
             .load_one(attendees::Entity, self.as_ref())

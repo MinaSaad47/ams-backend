@@ -49,13 +49,17 @@ impl AdminsRepoTrait for AdminsRepoPg {
             .into())
     }
     async fn get_all(&self) -> Result<Vec<Admin>, RepoError> {
-        Ok(admins::Entity::find()
+        let collection: Vec<Admin> = admins::Entity::find()
             .all(self.as_ref())
-            .await
+            .await?
             .into_iter()
-            .flatten()
             .map(Admin::from)
-            .collect())
+            .collect();
+        if collection.is_empty() {
+            Err(RepoError::NotFound("admins".to_owned()))
+        } else {
+            Ok(collection)
+        }
     }
     async fn delete_by_id(&self, id: Uuid) -> Result<(), RepoError> {
         admins::Entity::delete_by_id(id).exec(self.as_ref()).await?;

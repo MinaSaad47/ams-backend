@@ -66,10 +66,13 @@ impl SubjectsRepoTrait for SubjectsRepository {
                     .filter(attendees::Column::Id.eq(attendee))
             })
             .all(self.as_ref())
-            .await
+            .await?
             .into_iter()
-            .flatten()
             .collect();
+
+        if subjects.is_empty() {
+            return Err(RepoError::NotFound("subjects".to_owned()));
+        }
 
         let instructors: Vec<Option<Instructor>> = subjects
             .load_one(instructors::Entity, self.as_ref())

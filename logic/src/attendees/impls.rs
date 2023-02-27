@@ -79,13 +79,17 @@ impl AttendeesRepoTrait for AttendeesRepo {
             .into())
     }
     async fn get_all(&self) -> Result<Vec<Attendee>, RepoError> {
-        Ok(attendees::Entity::find()
+        let collections: Vec<Attendee> = attendees::Entity::find()
             .all(self.as_ref())
-            .await
+            .await?
             .into_iter()
-            .flatten()
             .map(Attendee::from)
-            .collect())
+            .collect();
+        if collections.is_empty() {
+            Err(RepoError::NotFound("attendees".to_owned()))
+        } else {
+            Ok(collections)
+        }
     }
     async fn delete_by_id(&self, id: Uuid) -> Result<(), RepoError> {
         attendees::Entity::delete_by_id(id)
