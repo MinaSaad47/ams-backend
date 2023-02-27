@@ -29,10 +29,7 @@ pub fn routes(attendances_state: AttandancesState) -> Router {
 
 #[utoipa::path(
     get,
-    path = "/attendances/subjects/{id}",
-    params(
-        ("id" = Uuid, Path, description = "subject id"),
-    ),
+    path = "/attendances/subjects/{subject_id}",
     responses(
         (status = OK, body = AttendancesListResponse)
     ),
@@ -41,12 +38,12 @@ pub fn routes(attendances_state: AttandancesState) -> Router {
 pub async fn get_all_for_one_subject(
     State(attendances_repo): State<DynAttendancesRepo>,
     State(subjects_repo): State<DynSubjectsRepo>,
-    Path(id): Path<Uuid>,
+    Path(subject_id): Path<Uuid>,
     claimes: Claims,
 ) -> Result<AppResponse<Vec<Attendance>>, ApiError> {
     match claimes.user {
         User::Admin(_) => {}
-        User::Instructor(id) if id == subjects_repo.get_by_id(id).await?.id => {}
+        User::Instructor(id) if id == subjects_repo.get_by_id(subject_id).await?.id => {}
         _ => {
             return Err(AuthError::UnauthorizedAccess.into());
         }
@@ -54,7 +51,7 @@ pub async fn get_all_for_one_subject(
 
     let attendances = attendances_repo
         .get(AttendancesFilter {
-            subject_id: Some(id),
+            subject_id: Some(subject_id),
             ..Default::default()
         })
         .await?;
@@ -70,10 +67,6 @@ pub async fn get_all_for_one_subject(
 #[utoipa::path(
     post,
     path = "/attendances/subjects/{subject_id}/attendees/{attendee_id}",
-    params(
-        ("subject_id" = Uuid, Path, description = "subject id"),
-        ("attendee_id" = Uuid, Path, description = "attendee id"),
-    ),
     responses(
         (status = OK, body = AttendanceResponse)
     ),

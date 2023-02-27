@@ -91,10 +91,7 @@ async fn create_one(
 
 #[utoipa::path(
     get,
-    path = "/instructors/{id}",
-    params(
-        ("id" = Uuid, Path, description = "instructor id"),
-    ),
+    path = "/instructors/{instructor_id}",
     responses(
         (status = CREATED, body = InstructorResponse)
     ),
@@ -121,7 +118,7 @@ async fn get_one(
 
 #[utoipa::path(
     patch,
-    path = "/instructors/{id}",
+    path = "/instructors/{instructor_id}",
     params(
         ("id" = Uuid, Path, description = "instructor id"),
     ),
@@ -133,7 +130,7 @@ async fn get_one(
 )]
 async fn update_one(
     State(repo): State<DynInstructorsRepo>,
-    Path(id): Path<Uuid>,
+    Path(instructor_id): Path<Uuid>,
     claimes: Claims,
     Json(update_instructor): Json<UpdateInstructor>,
 ) -> Result<AppResponse<Instructor>, ApiError> {
@@ -141,7 +138,7 @@ async fn update_one(
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
-    let instructor = repo.update(id, update_instructor).await?;
+    let instructor = repo.update(instructor_id, update_instructor).await?;
     let response = AppResponse::with_content(instructor, "update the instructor successfully");
 
     Ok(response)
@@ -150,9 +147,6 @@ async fn update_one(
 #[utoipa::path(
     delete,
     path = "/instructors/{id}",
-    params(
-        ("id" = Uuid, Path, description = "instructor id"),
-    ),
     responses(
         (status = OK)
     ),
@@ -160,14 +154,14 @@ async fn update_one(
 )]
 async fn delete_one(
     State(repo): State<DynInstructorsRepo>,
-    Path(id): Path<Uuid>,
+    Path(instructor_id): Path<Uuid>,
     claimes: Claims,
 ) -> Result<AppResponse<()>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
-    repo.delete_by_id(id).await?;
+    repo.delete_by_id(instructor_id).await?;
     let response = AppResponse::no_content("deleted one instructor successfully");
 
     Ok(response)
@@ -208,9 +202,6 @@ async fn login(
 #[utoipa::path(
     get,
     path = "/instructors/{instructor_id}/subjects",
-    params(
-        ("instructor_id" = Uuid, Path, description = "instructor id"),
-    ),
     responses(
         (status = OK, body = SubjectsListResponse)
     ),
@@ -244,10 +235,6 @@ async fn get_all_subjects_for_one(
 #[utoipa::path(
     get,
     path = "/instructors/{instructor_id}/subjects/{subject_id}",
-    params(
-        ("instructor_id" = Uuid, Path, description = "instructor id"),
-        ("subject_id" = Uuid, Path, description = "subject id"),
-    ),
     responses(
         (status = OK, body = SubjectResponse)
     ),
@@ -286,10 +273,6 @@ async fn get_one_subject_for_one(
 #[utoipa::path(
     put,
     path = "/instructors/{instructor_id}/subjects/{subject_id}",
-    params(
-        ("instructor_id" = Uuid, Path, description = "instructor id"),
-        ("subject_id" = Uuid, Path, description = "subject id"),
-    ),
     responses(
         (status = OK, body = SubjectResponse)
     ),
@@ -323,10 +306,6 @@ async fn put_one_subject_to_one(
 #[utoipa::path(
     delete,
     path = "/instructors/{instructor_id}/subjects/{subject_id}",
-    params(
-        ("instructor_id" = Uuid, Path, description = "instructor id"),
-        ("subject_id" = Uuid, Path, description = "subject id"),
-    ),
     responses(
         (status = OK, body = SubjectResponse)
     ),

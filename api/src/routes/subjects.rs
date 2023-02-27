@@ -72,10 +72,7 @@ async fn create_one(
 
 #[utoipa::path(
     get,
-    path = "/subjects/{id}",
-    params(
-        ("id" = Uuid, Path, description = "subject id"),
-    ),
+    path = "/subjects/{subject_id}",
     responses(
         (status = CREATED, body = SubjectResponse)
     ),
@@ -84,9 +81,9 @@ async fn create_one(
 async fn get_one(
     State(repo): State<DynSubjectsRepo>,
     _: Claims,
-    Path(id): Path<Uuid>,
+    Path(subject_id): Path<Uuid>,
 ) -> Result<AppResponse<Subject>, ApiError> {
-    let subjects = repo.get_by_id(id).await?;
+    let subjects = repo.get_by_id(subject_id).await?;
     let response = AppResponse::with_content(subjects, "retreived one subject successfully");
 
     Ok(response)
@@ -94,10 +91,7 @@ async fn get_one(
 
 #[utoipa::path(
     patch,
-    path = "/subjects/{id}",
-    params(
-        ("id" = Uuid, Path, description = "subject id"),
-    ),
+    path = "/subjects/{subject_id}",
     request_body = UpdateSubject,
     responses(
         (status = OK, body = SubjectResponse)
@@ -107,14 +101,14 @@ async fn get_one(
 async fn update_one(
     State(repo): State<DynSubjectsRepo>,
     claims: Claims,
-    Path(id): Path<Uuid>,
+    Path(subject_id): Path<Uuid>,
     Json(subject): Json<UpdateSubject>,
 ) -> Result<AppResponse<Subject>, ApiError> {
     let User::Admin(_) = claims.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
-    let subjects = repo.update(id, subject).await?;
+    let subjects = repo.update(subject_id, subject).await?;
     let response = AppResponse::with_content(subjects, "updated one subject successfully");
 
     Ok(response)
@@ -122,10 +116,7 @@ async fn update_one(
 
 #[utoipa::path(
     delete,
-    path = "/subjects/{id}",
-    params(
-        ("id" = Uuid, Path, description = "subject id"),
-    ),
+    path = "/subjects/{subject_id}",
     responses(
         (status = OK)
     ),
@@ -134,13 +125,13 @@ async fn update_one(
 async fn delete_one(
     State(repo): State<DynSubjectsRepo>,
     claims: Claims,
-    Path(id): Path<Uuid>,
+    Path(subject_id): Path<Uuid>,
 ) -> Result<AppResponse<()>, ApiError> {
     let User::Admin(_) = claims.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
-    repo.delete_by_id(id).await?;
+    repo.delete_by_id(subject_id).await?;
     let response = AppResponse::no_content("deleted one subject successfully");
 
     Ok(response)

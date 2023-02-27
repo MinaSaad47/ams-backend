@@ -167,12 +167,9 @@ async fn create_one(
 
 #[utoipa::path(
     get,
-    path = "/attendees/{id}",
-    params(
-        ("id" = Uuid, Path, description = "attendee id"),
-    ),
+    path = "/attendees/{attendee_id}",
     responses(
-        (status = CREATED, body = AttendeeResponse)
+        (status = OK, body = AttendeeResponse)
     ),
     security(("api_jwt_token" = []))
 )]
@@ -188,7 +185,6 @@ async fn get_one(
             return Err(AuthError::UnauthorizedAccess.into());
         }
     };
-
     let attendee = repo.get_by_id(attendee_id).await?;
     let response = AppResponse::with_content(attendee, "retreived an attendee successfully");
 
@@ -197,10 +193,7 @@ async fn get_one(
 
 #[utoipa::path(
     patch,
-    path = "/attendees/{id}",
-    params(
-        ("id" = Uuid, Path, description = "attendee id"),
-    ),
+    path = "/attendees/{attendee_id}",
     request_body = UpdateAttendee,
     responses(
         (status = OK, body = AttendeeResponse)
@@ -209,7 +202,7 @@ async fn get_one(
 )]
 async fn update_one(
     State(repo): State<DynAttendeesRepo>,
-    Path(id): Path<Uuid>,
+    Path(attendee_id): Path<Uuid>,
     claimes: Claims,
     Json(update_attendee): Json<UpdateAttendee>,
 ) -> Result<AppResponse<Attendee>, ApiError> {
@@ -217,7 +210,7 @@ async fn update_one(
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
-    let attendee = repo.update(id, update_attendee).await?;
+    let attendee = repo.update(attendee_id, update_attendee).await?;
     let response = AppResponse::with_content(attendee, "update the attendee successfully");
 
     Ok(response)
@@ -225,10 +218,7 @@ async fn update_one(
 
 #[utoipa::path(
     delete,
-    path = "/attendees/{id}",
-    params(
-        ("id" = Uuid, Path, description = "attendee id"),
-    ),
+    path = "/attendees/{attendee_id}",
     responses(
         (status = OK)
     ),
@@ -236,14 +226,14 @@ async fn update_one(
 )]
 async fn delete_one(
     State(repo): State<DynAttendeesRepo>,
-    Path(id): Path<Uuid>,
+    Path(attendee_id): Path<Uuid>,
     claimes: Claims,
 ) -> Result<AppResponse<()>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
-    repo.delete_by_id(id).await?;
+    repo.delete_by_id(attendee_id).await?;
     let response = AppResponse::no_content("deleted one attendee successfully");
 
     Ok(response)
@@ -284,9 +274,6 @@ async fn login(
 #[utoipa::path(
     get,
     path = "/attendees/{attendee_id}/subjects",
-    params(
-        ("attendee_id" = Uuid, Path, description = "attendee id"),
-    ),
     responses(
         (status = OK, body = SubjectsListResponse)
     ),
@@ -320,10 +307,6 @@ async fn get_all_subjects_for_one(
 #[utoipa::path(
     get,
     path = "/attendees/{attendee_id}/subjects/{subject_id}",
-    params(
-        ("attendee_id" = Uuid, Path, description = "attendee id"),
-        ("subject_id" = Uuid, Path, description = "subject id"),
-    ),
     responses(
         (status = OK, body = SubjectResponse)
     ),
@@ -362,11 +345,6 @@ async fn get_one_subject_for_one(
 #[utoipa::path(
     put,
     path = "/attendees/{attendee_id}/subjects/{subject_id}",
-    request_body(content = Image, content_type = "multipart/form-data"),
-    params(
-        ("attendee_id" = Uuid, Path, description = "attendee id"),
-        ("subject_id" = Uuid, Path, description = "subject id"),
-    ),
     responses(
         (status = OK, body = SubjectResponse)
     ),
@@ -390,10 +368,6 @@ async fn put_one_subject_to_one(
 #[utoipa::path(
     delete,
     path = "/attendees/{attendee_id}/subjects/{subject_id}",
-    params(
-        ("attendee_id" = Uuid, Path, description = "attendee id"),
-        ("subject_id" = Uuid, Path, description = "subject id"),
-    ),
     responses(
         (status = OK, body = SubjectResponse)
     ),
@@ -436,10 +410,7 @@ async fn get_all_attendances_with_one_attendee_and_one_subject(
 
 #[utoipa::path(
     post,
-    path = "/attendees/{id}/image",
-    params(
-        ("id" = Uuid, Path, description = "attendee id"),
-    ),
+    path = "/attendees/{attendee_id}/image",
     request_body(content = Image, content_type = "multipart/form-data"),
     responses(
         (status = OK, body = AttendeesListResponse)
@@ -448,7 +419,7 @@ async fn get_all_attendances_with_one_attendee_and_one_subject(
 )]
 async fn upload_image(
     State(repo): State<DynAttendeesRepo>,
-    Path(id): Path<Uuid>,
+    Path(attendee_id): Path<Uuid>,
     claimes: Claims,
     mut multipart: Multipart,
 ) -> Result<AppResponse<()>, ApiError> {
@@ -471,7 +442,7 @@ async fn upload_image(
     let embedding = Vec::from_image(image_path.to_str().ok_or(ApiError::Unknown)?).await?;
 
     repo.update(
-        id,
+        attendee_id,
         UpdateAttendee {
             embedding: Some(Some(embedding)),
             ..Default::default()
