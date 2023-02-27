@@ -2,14 +2,14 @@ use std::sync::Arc;
 
 use sea_orm::{
     prelude::{async_trait::async_trait, *},
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, JoinType, QueryFilter,
-    QuerySelect, QueryTrait, Set,
+    sea_query::Query,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryTrait, Set,
 };
 use uuid::Uuid;
 
 pub use crate::prelude::*;
 
-use crate::entity::{attendees, attendees_subjects, instructors, subjects};
+use crate::entity::{attendees_subjects, instructors, subjects};
 
 pub struct SubjectsRepository(pub Arc<DatabaseConnection>);
 
@@ -58,12 +58,15 @@ impl SubjectsRepoTrait for SubjectsRepository {
                 query.filter(subjects::Column::InstructorId.eq(instructor))
             })
             .apply_if(filter.attendee_id, |qeury, attendee| {
-                qeury
-                    .join(
-                        JoinType::LeftJoin,
-                        attendees_subjects::Relation::Attendees.def(),
-                    )
-                    .filter(attendees::Column::Id.eq(attendee))
+                qeury.filter(
+                    subjects::Column::Id.in_subquery(
+                        Query::select()
+                            .column(attendees_subjects::Column::SubjectId)
+                            .from(attendees_subjects::Entity)
+                            .and_where(attendees_subjects::Column::SubjectId.eq(attendee))
+                            .to_owned(),
+                    ),
+                )
             })
             .all(self.as_ref())
             .await?
