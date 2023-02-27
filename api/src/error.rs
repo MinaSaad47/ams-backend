@@ -27,7 +27,7 @@ impl IntoResponse for ApiError {
                     StatusCode::NOT_FOUND,
                     Json(json!({"status": false, "message": error.to_string()})),
                 ),
-                RepoError::Duplicate(_) => (
+                RepoError::Duplicate(_, _) => (
                     StatusCode::CONFLICT,
                     Json(json!({"status": false, "message": error.to_string()})),
                 ),

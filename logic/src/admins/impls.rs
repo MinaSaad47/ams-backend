@@ -37,7 +37,7 @@ impl AdminsRepoTrait for AdminsRepoPg {
         Ok(admins::Entity::find_by_id(id)
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound("admin".to_owned()))?
+            .ok_or(RepoError::NotFound("admins".to_owned()))?
             .into())
     }
     async fn get_by_email(&self, email: String) -> Result<Admin, RepoError> {
@@ -45,7 +45,7 @@ impl AdminsRepoTrait for AdminsRepoPg {
             .filter(admins::Column::Email.eq(&email))
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound("user".to_owned()))?
+            .ok_or(RepoError::NotFound("admins".to_owned()))?
             .into())
     }
     async fn get_all(&self) -> Result<Vec<Admin>, RepoError> {

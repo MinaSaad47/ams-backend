@@ -1,11 +1,6 @@
 [workspace]
 
-members = [
-    "nn-model",
-    "api",
-    "logic",
-    "common",
-]
+members = ["nn-model", "api", "logic", "common"]
 
 [workspace.dependencies]
 serde = { version = "1.0.152", features = ["serde_derive"] }
@@ -19,4 +14,10 @@ thiserror = "1.0.38"
 serde_json = "1.0.93"
 utoipa = { version = "3.0.3", features = ["axum_extras", "chrono", "uuid"] }
 hyper = { version = "0.14.24", features = ["full"] }
-sea-orm = { version = "0.11.0", features = ["runtime-tokio-rustls", "sqlx-postgres", "mock", "postgres-array"] }
+tracing = "0.1.37"
+sea-orm = { version = "0.11.0", features = [
+    "runtime-tokio-rustls",
+    "sqlx-postgres",
+    "mock",
+    "postgres-array",
+] }

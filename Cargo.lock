@@ -1142,6 +1142,7 @@ dependencies = [
  "sqlx",
  "thiserror",
  "tokio",
+ "tracing",
  "utoipa",
  "uuid",
 ]

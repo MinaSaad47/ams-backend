@@ -40,7 +40,7 @@ impl AttendeesRepoTrait for AttendeesRepo {
         let mut attendee: attendees::ActiveModel = attendees::Entity::find_by_id(id)
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound("attendee".to_owned()))?
+            .ok_or(RepoError::NotFound("attendees".to_owned()))?
             .into();
 
         if let Some(name) = name {
@@ -67,7 +67,7 @@ impl AttendeesRepoTrait for AttendeesRepo {
         Ok(attendees::Entity::find_by_id(id)
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound("attendee".to_owned()))?
+            .ok_or(RepoError::NotFound("attendees".to_owned()))?
             .into())
     }
     async fn get_by_email(&self, email: String) -> Result<Attendee, RepoError> {
@@ -75,7 +75,7 @@ impl AttendeesRepoTrait for AttendeesRepo {
             .filter(attendees::Column::Email.eq(&email))
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound("attendee".to_owned()))?
+            .ok_or(RepoError::NotFound("attendees".to_owned()))?
             .into())
     }
     async fn get_all(&self) -> Result<Vec<Attendee>, RepoError> {

@@ -87,20 +87,20 @@ impl AttendancesRepoTrait for AttendancesRepo {
         let attendance = attendances::Entity::find_by_id(id)
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound("attendacne".to_owned()))?;
+            .ok_or(RepoError::NotFound("attendacnes".to_owned()))?;
 
         let attendee = attendance
             .find_related(attendees::Entity)
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound("attendee".to_owned()))?
+            .ok_or(RepoError::NotFound("attendees".to_owned()))?
             .into();
 
         let subject = attendance
             .find_related(subjects::Entity)
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound("subject".to_owned()))?;
+            .ok_or(RepoError::NotFound("subjects".to_owned()))?;
 
         let instructor = subject
             .find_related(instructors::Entity)

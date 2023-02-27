@@ -36,7 +36,7 @@ impl SubjectsRepoTrait for SubjectsRepository {
         let subject = subjects::Entity::find_by_id(id)
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound("subject".to_owned()))?;
+            .ok_or(RepoError::NotFound("subjects".to_owned()))?;
 
         let instructor = subject
             .find_related(instructors::Entity)
@@ -94,7 +94,7 @@ impl SubjectsRepoTrait for SubjectsRepository {
         let mut subject: subjects::ActiveModel = subjects::Entity::find_by_id(id)
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound("subject".to_owned()))?
+            .ok_or(RepoError::NotFound("subjects".to_owned()))?
             .into();
 
         if let Some(name) = name {
@@ -135,9 +135,7 @@ impl SubjectsRepoTrait for SubjectsRepository {
             )
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound(
-                "subject don't belog to attendee".to_owned(),
-            ))?
+            .ok_or(RepoError::NotFound("attendees_subjects".to_owned()))?
             .into();
         attedee_subject.delete(self.as_ref()).await?;
         Ok(())

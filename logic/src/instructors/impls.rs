@@ -39,7 +39,7 @@ impl InstructorsRepoTrait for InstructorsRepo {
         let mut instructor: instructors::ActiveModel = instructors::Entity::find_by_id(id)
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound("instructor".to_owned()))?
+            .ok_or(RepoError::NotFound("instructors".to_owned()))?
             .into();
 
         if let Some(name) = name {
@@ -63,7 +63,7 @@ impl InstructorsRepoTrait for InstructorsRepo {
         Ok(instructors::Entity::find_by_id(id)
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound("instructor".to_owned()))?
+            .ok_or(RepoError::NotFound("instructors".to_owned()))?
             .into())
     }
     async fn get_by_email(&self, email: String) -> Result<Instructor, RepoError> {
@@ -71,7 +71,7 @@ impl InstructorsRepoTrait for InstructorsRepo {
             .filter(instructors::Column::Email.eq(&email))
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound("instructor".to_owned()))?
+            .ok_or(RepoError::NotFound("instructors".to_owned()))?
             .into())
     }
     async fn get_all(&self) -> Result<Vec<Instructor>, RepoError> {
