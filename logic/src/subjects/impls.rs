@@ -24,7 +24,7 @@ impl SubjectsRepoTrait for SubjectsRepository {
     async fn create(&self, subject: CreateSubject) -> Result<Subject, RepoError> {
         let subject = subjects::ActiveModel {
             name: Set(subject.name),
-            cron_expr: Set(subject.cron_expr),
+            cron_expr: Set(subject.cron_expr.to_string()),
             ..Default::default()
         }
         .insert(self.as_ref())
@@ -107,7 +107,7 @@ impl SubjectsRepoTrait for SubjectsRepository {
             subject.name = Set(name);
         }
         if let Some(cron_expr) = cron_expr {
-            subject.cron_expr = Set(cron_expr);
+            subject.cron_expr = Set(cron_expr.to_string());
         }
         if let Some(instructor_id) = instructor_id {
             subject.instructor_id = Set(instructor_id);

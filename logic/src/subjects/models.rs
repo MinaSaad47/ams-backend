@@ -1,5 +1,8 @@
+use std::str::FromStr;
+
 use chrono::{DateTime, FixedOffset};
-use serde::{Deserialize, Serialize};
+use cron::Schedule;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
@@ -13,7 +16,11 @@ pub struct Subject {
     pub id: Uuid,
     pub name: String,
     pub instructor: Option<Instructor>,
-    pub cron_expr: String,
+    #[serde(
+        serialize_with = "cron_serialize",
+        deserialize_with = "cron_deserialize"
+    )]
+    pub cron_expr: Schedule,
     pub create_at: DateTime<FixedOffset>,
     pub updated_at: DateTime<FixedOffset>,
 }
@@ -36,7 +43,7 @@ impl From<(subjects::Model, Option<Instructor>)> for Subject {
             id,
             name,
             instructor,
-            cron_expr,
+            cron_expr: Schedule::from_str(&cron_expr).expect("valid expression from the database"),
             create_at,
             updated_at,
         }
@@ -48,8 +55,12 @@ impl From<(subjects::Model, Option<Instructor>)> for Subject {
 pub struct CreateSubject {
     #[schema(example = "intro to computer science")]
     pub name: String,
-    #[schema(example = "* * * * *")]
-    pub cron_expr: String,
+    #[schema(example = "* * * * * *", value_type = String)]
+    #[serde(
+        serialize_with = "cron_serialize",
+        deserialize_with = "cron_deserialize"
+    )]
+    pub cron_expr: Schedule,
 }
 
 #[derive(Deserialize, Serialize, Default, ToSchema)]
@@ -57,8 +68,12 @@ pub struct CreateSubject {
 pub struct UpdateSubject {
     #[schema(example = "updated intro to computer science")]
     pub name: Option<String>,
-    #[schema(example = "* * * * *")]
-    pub cron_expr: Option<String>,
+    #[schema(example = "* * * * * *", value_type = String)]
+    #[serde(
+        serialize_with = "opt_cron_serialize",
+        deserialize_with = "opt_cron_deserialize"
+    )]
+    pub cron_expr: Option<Schedule>,
     #[serde(skip)]
     pub instructor_id: Option<Option<Uuid>>,
 }
@@ -69,4 +84,44 @@ pub struct SubjectsFilter {
     pub name: Option<String>,
     pub instructor_id: Option<Uuid>,
     pub attendee_id: Option<Uuid>,
+}
+
+fn cron_serialize<S>(cron: &Schedule, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    s.serialize_str(&cron.to_string())
+}
+
+fn opt_cron_serialize<S>(cron: &Option<Schedule>, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match cron {
+        Some(cron) => s.serialize_some(&cron.to_string()),
+        None => s.serialize_none(),
+    }
+}
+
+fn cron_deserialize<'de, D>(deserializer: D) -> Result<cron::Schedule, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let buf = String::deserialize(deserializer)?;
+
+    cron::Schedule::from_str(&buf).map_err(serde::de::Error::custom)
+}
+
+fn opt_cron_deserialize<'de, D>(deserializer: D) -> Result<Option<cron::Schedule>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let buf: Option<String> = Deserialize::deserialize(deserializer)?;
+
+    let res = match buf {
+        Some(buf) => Some(Schedule::from_str(&buf).map_err(serde::de::Error::custom)?),
+        None => None,
+    };
+
+    Ok(res)
 }
