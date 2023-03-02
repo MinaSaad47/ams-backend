@@ -10,7 +10,7 @@ use logic::prelude::*;
 use crate::{
     auth::{AuthError, Claims, User},
     error::ApiError,
-    response::AppResponse,
+    response::{AppResponse, AppResponseDataExt},
     DynAttendancesRepo, DynSubjectsRepo,
 };
 
@@ -40,7 +40,7 @@ pub async fn get_all_for_one_subject(
     State(subjects_repo): State<DynSubjectsRepo>,
     Path(subject_id): Path<Uuid>,
     claimes: Claims,
-) -> Result<AppResponse<Vec<Attendance>>, ApiError> {
+) -> Result<AppResponse<'static, Vec<Attendance>>, ApiError> {
     match claimes.user {
         User::Admin(_) => {}
         User::Instructor(id) if id == subjects_repo.get_by_id(subject_id).await?.id => {}
@@ -56,10 +56,7 @@ pub async fn get_all_for_one_subject(
         })
         .await?;
 
-    let response = AppResponse::with_content(
-        attendances,
-        "retreived all attendances for a subject successfully",
-    );
+    let response = attendances.ok_response("retreived all attendances for a subject successfully");
 
     Ok(response)
 }
@@ -76,7 +73,7 @@ pub async fn create_one(
     State(repo): State<DynAttendancesRepo>,
     Path((subject_id, attendee_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,
-) -> Result<AppResponse<Attendance>, ApiError> {
+) -> Result<AppResponse<'static, Attendance>, ApiError> {
     match claimes.user {
         User::Admin(_) => {}
         User::Instructor(id) if id == repo.get_by_id(id).await?.id => {}
@@ -92,7 +89,7 @@ pub async fn create_one(
         })
         .await?;
 
-    let respone = AppResponse::with_content(attendance, "attendance was taken successfully");
+    let respone = attendance.create_response("attendance was taken successfully");
 
     Ok(respone)
 }

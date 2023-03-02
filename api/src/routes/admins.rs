@@ -9,6 +9,7 @@ use crate::{
     auth::{AuthBody, AuthError, AuthPayload, Claims, User, KEYS},
     error::ApiError,
     response::AppResponse,
+    response::AppResponseDataExt,
     DynAdminsRepo,
 };
 
@@ -34,7 +35,7 @@ pub fn routes(admins_state: AdminsState) -> Router {
 async fn login(
     State(repo): State<DynAdminsRepo>,
     Json(payload): Json<AuthPayload>,
-) -> Result<AppResponse<AuthBody>, ApiError> {
+) -> Result<AppResponse<'static, AuthBody>, ApiError> {
     let admin = repo.get_by_email(payload.email).await?;
 
     if payload.password != admin.password {
@@ -48,8 +49,7 @@ async fn login(
 
     let token = encode(&Header::default(), &claims, &KEYS.encoding).unwrap();
 
-    let response = AppResponse::with_content(AuthBody { token }, "logged in as admin successfully");
-
+    let response = AuthBody { token }.create_response("logged in as admin successfully");
     Ok(response)
 }
 

@@ -10,7 +10,7 @@ use logic::prelude::*;
 use crate::{
     auth::{AuthError, Claims, User},
     error::ApiError,
-    response::AppResponse,
+    response::{AppResponse, AppResponseDataExt, AppResponseMsgExt},
     DynSubjectsRepo,
 };
 
@@ -35,13 +35,13 @@ pub fn routes(subjects_repo: DynSubjectsRepo) -> Router {
 async fn get_all(
     State(repo): State<DynSubjectsRepo>,
     claims: Claims,
-) -> Result<AppResponse<Vec<Subject>>, ApiError> {
+) -> Result<AppResponse<'static, Vec<Subject>>, ApiError> {
     let User::Admin(_) = claims.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
     let subjects = repo.get(SubjectsFilter::default()).await?;
-    let response = AppResponse::with_content(subjects, "retreived all subjects successfully");
+    let response = subjects.ok_response("retreived all subjects successfully");
 
     Ok(response)
 }
@@ -59,13 +59,13 @@ async fn create_one(
     State(repo): State<DynSubjectsRepo>,
     claims: Claims,
     Json(subject): Json<CreateSubject>,
-) -> Result<AppResponse<Subject>, ApiError> {
+) -> Result<AppResponse<'static, Subject>, ApiError> {
     let User::Admin(_) = claims.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
     let subjects = repo.create(subject).await?;
-    let response = AppResponse::with_content(subjects, "retreived all subjects successfully");
+    let response = subjects.ok_response("retreived all subjects successfully");
 
     Ok(response)
 }
@@ -82,9 +82,9 @@ async fn get_one(
     State(repo): State<DynSubjectsRepo>,
     _: Claims,
     Path(subject_id): Path<Uuid>,
-) -> Result<AppResponse<Subject>, ApiError> {
+) -> Result<AppResponse<'static, Subject>, ApiError> {
     let subjects = repo.get_by_id(subject_id).await?;
-    let response = AppResponse::with_content(subjects, "retreived one subject successfully");
+    let response = subjects.ok_response("retreived one subject successfully");
 
     Ok(response)
 }
@@ -103,13 +103,13 @@ async fn update_one(
     claims: Claims,
     Path(subject_id): Path<Uuid>,
     Json(subject): Json<UpdateSubject>,
-) -> Result<AppResponse<Subject>, ApiError> {
+) -> Result<AppResponse<'static, Subject>, ApiError> {
     let User::Admin(_) = claims.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
     let subjects = repo.update(subject_id, subject).await?;
-    let response = AppResponse::with_content(subjects, "updated one subject successfully");
+    let response = subjects.ok_response("updated one subject successfully");
 
     Ok(response)
 }
@@ -126,13 +126,13 @@ async fn delete_one(
     State(repo): State<DynSubjectsRepo>,
     claims: Claims,
     Path(subject_id): Path<Uuid>,
-) -> Result<AppResponse<()>, ApiError> {
+) -> Result<AppResponse<'static, ()>, ApiError> {
     let User::Admin(_) = claims.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
     repo.delete_by_id(subject_id).await?;
-    let response = AppResponse::no_content("deleted one subject successfully");
+    let response = "deleted one subject successfully".response();
 
     Ok(response)
 }

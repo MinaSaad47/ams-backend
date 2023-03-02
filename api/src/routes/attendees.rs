@@ -15,7 +15,7 @@ use nn_model::Embedding;
 use crate::{
     auth::{AuthBody, AuthError, AuthPayload, Claims, User, KEYS},
     error::ApiError,
-    response::AppResponse,
+    response::{AppResponse, AppResponseDataExt, AppResponseMsgExt},
     DynAttendancesRepo, DynAttendeesRepo, DynSubjectsRepo,
 };
 
@@ -65,13 +65,13 @@ pub fn routes(attendees_state: AttendeesState) -> Router {
 async fn get_all(
     State(repo): State<DynAttendeesRepo>,
     claimes: Claims,
-) -> Result<AppResponse<Vec<Attendee>>, ApiError> {
+) -> Result<AppResponse<'static, Vec<Attendee>>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
     let attendees = repo.get_all().await?;
-    let response = AppResponse::created(attendees, "retreived all attendees successfully");
+    let response = attendees.ok_response("retreived all attendees successfully");
 
     Ok(response)
 }
@@ -89,7 +89,7 @@ async fn get_all_with_image(
     State(repo): State<DynAttendeesRepo>,
     claimes: Claims,
     multipart: Option<Multipart>,
-) -> Result<AppResponse<Vec<Attendee>>, ApiError> {
+) -> Result<AppResponse<'static, Vec<Attendee>>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
@@ -136,7 +136,7 @@ async fn get_all_with_image(
         .map(|(attendee, _)| attendee)
         .collect();
 
-    let response = AppResponse::created(attendees, "retreived all attendees successfully");
+    let response = attendees.ok_response("retreived all attendees successfully");
 
     Ok(response)
 }
@@ -154,13 +154,13 @@ async fn create_one(
     State(repo): State<DynAttendeesRepo>,
     claimes: Claims,
     Json(attendee): Json<CreateAttendee>,
-) -> Result<AppResponse<Attendee>, ApiError> {
+) -> Result<AppResponse<'static, Attendee>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
     let attendee = repo.create(attendee).await?;
-    let response = AppResponse::created(attendee, "create on attendee successfully");
+    let response = attendee.create_response("create on attendee successfully");
 
     Ok(response)
 }
@@ -177,7 +177,7 @@ async fn get_one(
     State(repo): State<DynAttendeesRepo>,
     Path(attendee_id): Path<Uuid>,
     claimes: Claims,
-) -> Result<AppResponse<Attendee>, ApiError> {
+) -> Result<AppResponse<'static, Attendee>, ApiError> {
     match claimes.user {
         User::Admin(_) => {}
         User::Attendee(id) if id == attendee_id => {}
@@ -186,7 +186,7 @@ async fn get_one(
         }
     };
     let attendee = repo.get_by_id(attendee_id).await?;
-    let response = AppResponse::with_content(attendee, "retreived an attendee successfully");
+    let response = attendee.ok_response("retreived an attendee successfully");
 
     Ok(response)
 }
@@ -205,13 +205,13 @@ async fn update_one(
     Path(attendee_id): Path<Uuid>,
     claimes: Claims,
     Json(update_attendee): Json<UpdateAttendee>,
-) -> Result<AppResponse<Attendee>, ApiError> {
+) -> Result<AppResponse<'static, Attendee>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
     let attendee = repo.update(attendee_id, update_attendee).await?;
-    let response = AppResponse::with_content(attendee, "update the attendee successfully");
+    let response = attendee.ok_response("update the attendee successfully");
 
     Ok(response)
 }
@@ -228,13 +228,13 @@ async fn delete_one(
     State(repo): State<DynAttendeesRepo>,
     Path(attendee_id): Path<Uuid>,
     claimes: Claims,
-) -> Result<AppResponse<()>, ApiError> {
+) -> Result<AppResponse<'static, ()>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
     repo.delete_by_id(attendee_id).await?;
-    let response = AppResponse::no_content("deleted one attendee successfully");
+    let response = "deleted one attendee successfully".response();
 
     Ok(response)
 }
@@ -251,7 +251,7 @@ async fn delete_one(
 async fn login(
     State(repo): State<DynAttendeesRepo>,
     Json(payload): Json<AuthPayload>,
-) -> Result<AppResponse<AuthBody>, ApiError> {
+) -> Result<AppResponse<'static, AuthBody>, ApiError> {
     let attendee = repo.get_by_email(payload.email).await?;
 
     if payload.password != attendee.password {
@@ -265,8 +265,7 @@ async fn login(
 
     let token = encode(&Header::default(), &claims, &KEYS.encoding).unwrap();
 
-    let response =
-        AppResponse::with_content(AuthBody { token }, "logged in as attendee successfully");
+    let response = AuthBody { token }.ok_response("logged in as attendee successfully");
 
     Ok(response)
 }
@@ -283,7 +282,7 @@ async fn get_all_subjects_for_one(
     State(repo): State<DynSubjectsRepo>,
     Path(attendee_id): Path<Uuid>,
     claimes: Claims,
-) -> Result<AppResponse<Vec<Subject>>, ApiError> {
+) -> Result<AppResponse<'static, Vec<Subject>>, ApiError> {
     match claimes.user {
         User::Admin(_) => {}
         User::Instructor(id) if id == attendee_id => {}
@@ -298,8 +297,7 @@ async fn get_all_subjects_for_one(
             ..Default::default()
         })
         .await?;
-    let response =
-        AppResponse::with_content(subjects, "retreived associated subjects successfully");
+    let response = subjects.ok_response("retreived associated subjects successfully");
 
     Ok(response)
 }
@@ -316,7 +314,7 @@ async fn get_one_subject_for_one(
     State(repo): State<DynSubjectsRepo>,
     Path((attendee_id, subject_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,
-) -> Result<AppResponse<Subject>, ApiError> {
+) -> Result<AppResponse<'static, Subject>, ApiError> {
     match claimes.user {
         User::Admin(_) => {}
         User::Instructor(id) if id == attendee_id => {}
@@ -337,7 +335,7 @@ async fn get_one_subject_for_one(
         return Err(RepoError::NotFound("subject".to_owned()).into());
     };
 
-    let response = AppResponse::with_content(subject, "retreived associated subjects successfully");
+    let response = subject.ok_response("retreived associated subjects successfully");
 
     Ok(response)
 }
@@ -354,13 +352,13 @@ async fn put_one_subject_to_one(
     State(repo): State<DynSubjectsRepo>,
     Path((attendee_id, subject_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,
-) -> Result<AppResponse<()>, ApiError> {
+) -> Result<AppResponse<'static, ()>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
     repo.add_attendee(subject_id, attendee_id).await?;
-    let response = AppResponse::no_content("a subject was added to an attendee successfully");
+    let response = "a subject was added to an attendee successfully".response();
 
     Ok(response)
 }
@@ -377,13 +375,13 @@ async fn delete_one_subject_from_one(
     State(repo): State<DynSubjectsRepo>,
     Path((attendee_id, subject_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,
-) -> Result<AppResponse<()>, ApiError> {
+) -> Result<AppResponse<'static, ()>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
     repo.remove_attendee(subject_id, attendee_id).await?;
-    let response = AppResponse::no_content("a subject was removed from an attendee successfully");
+    let response = "a subject was removed from an attendee successfully".response();
 
     Ok(response)
 }
@@ -392,7 +390,7 @@ async fn get_all_attendances_with_one_attendee_and_one_subject(
     State(repo): State<DynAttendancesRepo>,
     Path((attendee_id, subject_id)): Path<(Uuid, Uuid)>,
     _: Claims,
-) -> Result<AppResponse<Vec<Attendance>>, ApiError> {
+) -> Result<AppResponse<'static, Vec<Attendance>>, ApiError> {
     let attendances = repo
         .get(AttendancesFilter {
             subject_id: Some(subject_id),
@@ -400,10 +398,7 @@ async fn get_all_attendances_with_one_attendee_and_one_subject(
         })
         .await?;
 
-    let response = AppResponse::with_content(
-        attendances,
-        "retreived all subject attendances for an attendee",
-    );
+    let response = attendances.ok_response("retreived all subject attendances for an attendee");
 
     Ok(response)
 }
@@ -422,7 +417,7 @@ async fn upload_image(
     Path(attendee_id): Path<Uuid>,
     claimes: Claims,
     mut multipart: Multipart,
-) -> Result<AppResponse<()>, ApiError> {
+) -> Result<AppResponse<'static, ()>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
@@ -450,7 +445,7 @@ async fn upload_image(
     )
     .await?;
 
-    let response = AppResponse::no_content("added an image to an attendee successfully");
+    let response = "added an image to an attendee successfully".response();
 
     Ok(response)
 }

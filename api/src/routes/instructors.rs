@@ -11,7 +11,7 @@ use logic::prelude::*;
 use crate::{
     auth::{AuthBody, AuthError, AuthPayload, Claims, User, KEYS},
     error::ApiError,
-    response::AppResponse,
+    response::{AppResponse, AppResponseDataExt, AppResponseMsgExt},
     DynAttendancesRepo, DynInstructorsRepo, DynSubjectsRepo,
 };
 
@@ -55,13 +55,13 @@ pub fn routes(instructors_state: InstructorsState) -> Router {
 async fn get_all(
     State(repo): State<DynInstructorsRepo>,
     claimes: Claims,
-) -> Result<AppResponse<Vec<Instructor>>, ApiError> {
+) -> Result<AppResponse<'static, Vec<Instructor>>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
     let instructors = repo.get_all().await?;
-    let response = AppResponse::created(instructors, "retreived all instructors successfully");
+    let response = instructors.ok_response("retreived all instructors successfully");
     Ok(response)
 }
 
@@ -78,13 +78,13 @@ async fn create_one(
     State(repo): State<DynInstructorsRepo>,
     claimes: Claims,
     Json(instructor): Json<CreateInstructor>,
-) -> Result<AppResponse<Instructor>, ApiError> {
+) -> Result<AppResponse<'static, Instructor>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
     let instructor = repo.create(instructor).await?;
-    let response = AppResponse::created(instructor, "create on instructor successfully");
+    let response = instructor.create_response("create on instructor successfully");
 
     Ok(response)
 }
@@ -101,7 +101,7 @@ async fn get_one(
     State(repo): State<DynInstructorsRepo>,
     Path(instructor_id): Path<Uuid>,
     claimes: Claims,
-) -> Result<AppResponse<Instructor>, ApiError> {
+) -> Result<AppResponse<'static, Instructor>, ApiError> {
     match claimes.user {
         User::Admin(_) => {}
         User::Instructor(id) if id == instructor_id => {}
@@ -111,7 +111,7 @@ async fn get_one(
     };
 
     let instructor = repo.get_by_id(instructor_id).await?;
-    let response = AppResponse::with_content(instructor, "retreived an instructor successfully");
+    let response = instructor.ok_response("retreived an instructor successfully");
 
     Ok(response)
 }
@@ -133,13 +133,13 @@ async fn update_one(
     Path(instructor_id): Path<Uuid>,
     claimes: Claims,
     Json(update_instructor): Json<UpdateInstructor>,
-) -> Result<AppResponse<Instructor>, ApiError> {
+) -> Result<AppResponse<'static, Instructor>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
     let instructor = repo.update(instructor_id, update_instructor).await?;
-    let response = AppResponse::with_content(instructor, "update the instructor successfully");
+    let response = instructor.ok_response("update the instructor successfully");
 
     Ok(response)
 }
@@ -156,13 +156,13 @@ async fn delete_one(
     State(repo): State<DynInstructorsRepo>,
     Path(instructor_id): Path<Uuid>,
     claimes: Claims,
-) -> Result<AppResponse<()>, ApiError> {
+) -> Result<AppResponse<'static, ()>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
     repo.delete_by_id(instructor_id).await?;
-    let response = AppResponse::no_content("deleted one instructor successfully");
+    let response = "deleted one instructor successfully".response();
 
     Ok(response)
 }
@@ -179,7 +179,7 @@ async fn delete_one(
 async fn login(
     State(repo): State<DynInstructorsRepo>,
     Json(payload): Json<AuthPayload>,
-) -> Result<AppResponse<AuthBody>, ApiError> {
+) -> Result<AppResponse<'static, AuthBody>, ApiError> {
     let instructor = repo.get_by_email(payload.email).await?;
 
     if payload.password != instructor.password {
@@ -193,8 +193,7 @@ async fn login(
 
     let token = encode(&Header::default(), &claims, &KEYS.encoding).unwrap();
 
-    let response =
-        AppResponse::with_content(AuthBody { token }, "logged in as instructor successfully");
+    let response = AuthBody { token }.ok_response("logged in as instructor successfully");
 
     Ok(response)
 }
@@ -211,7 +210,7 @@ async fn get_all_subjects_for_one(
     State(repo): State<DynSubjectsRepo>,
     Path(instructor_id): Path<Uuid>,
     claimes: Claims,
-) -> Result<AppResponse<Vec<Subject>>, ApiError> {
+) -> Result<AppResponse<'static, Vec<Subject>>, ApiError> {
     match claimes.user {
         User::Admin(_) => {}
         User::Instructor(id) if id == instructor_id => {}
@@ -226,8 +225,7 @@ async fn get_all_subjects_for_one(
             ..Default::default()
         })
         .await?;
-    let response =
-        AppResponse::with_content(subjects, "retreived associated subjects successfully");
+    let response = subjects.ok_response("retreived associated subjects successfully");
 
     Ok(response)
 }
@@ -244,7 +242,7 @@ async fn get_one_subject_for_one(
     State(repo): State<DynSubjectsRepo>,
     Path((instructor_id, subject_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,
-) -> Result<AppResponse<Subject>, ApiError> {
+) -> Result<AppResponse<'static, Subject>, ApiError> {
     match claimes.user {
         User::Admin(_) => {}
         User::Instructor(id) if id == instructor_id => {}
@@ -265,7 +263,7 @@ async fn get_one_subject_for_one(
         return Err(RepoError::NotFound("subject".to_owned()).into());
     };
 
-    let response = AppResponse::with_content(subject, "retreived associated subjects successfully");
+    let response = subject.create_response("retreived associated subjects successfully");
 
     Ok(response)
 }
@@ -282,7 +280,7 @@ async fn put_one_subject_to_one(
     State(repo): State<DynSubjectsRepo>,
     Path((instructor_id, subject_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,
-) -> Result<AppResponse<Subject>, ApiError> {
+) -> Result<AppResponse<'static, Subject>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
@@ -297,8 +295,7 @@ async fn put_one_subject_to_one(
         )
         .await?;
 
-    let response =
-        AppResponse::with_content(subject, "assigned an instructor to a subject successfully");
+    let response = subject.create_response("assigned an instructor to a subject successfully");
 
     Ok(response)
 }
@@ -315,7 +312,7 @@ async fn delete_one_subject_from_one(
     State(repo): State<DynSubjectsRepo>,
     Path((instructor_id, subject_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,
-) -> Result<AppResponse<Subject>, ApiError> {
+) -> Result<AppResponse<'static, Subject>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
@@ -340,10 +337,7 @@ async fn delete_one_subject_from_one(
             },
         )
         .await?;
-    let response = AppResponse::with_content(
-        subject,
-        "removed the instructor from the subject successfully",
-    );
+    let response = subject.ok_response("removed the instructor from the subject successfully");
 
     Ok(response)
 }
