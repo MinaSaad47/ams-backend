@@ -14,8 +14,11 @@ use openapi_doc::ApiDoc;
 use sea_orm::Database;
 use tower::ServiceBuilder;
 use tower_http::{
-    compression::CompressionLayer, normalize_path::NormalizePathLayer, trace::TraceLayer,
+    compression::CompressionLayer,
+    normalize_path::NormalizePathLayer,
+    trace::{DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
+use tracing::Level;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -38,7 +41,7 @@ pub type DynSubjectsRepo = Arc<dyn SubjectsRepoTrait + Send + Sync>;
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
+        .with_max_level(tracing::Level::INFO)
         .with_test_writer()
         .pretty()
         .init();
@@ -83,7 +86,12 @@ async fn main() {
         )
         .layer(
             ServiceBuilder::new()
-                .layer(TraceLayer::new_for_http())
+                .layer(
+                    TraceLayer::new_for_http()
+                        .on_request(DefaultOnRequest::new().level(Level::INFO))
+                        .on_response(DefaultOnResponse::new().level(Level::INFO))
+                        .on_failure(DefaultOnFailure::new().level(Level::INFO)),
+                )
                 .layer(NormalizePathLayer::trim_trailing_slash())
                 .layer(CompressionLayer::new()),
         );
