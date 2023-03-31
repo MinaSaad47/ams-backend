@@ -1,7 +1,5 @@
 #![cfg(test)]
 
-use std::{cell::RefCell, sync::Mutex};
-
 use axum::Router;
 use hyper::{header, Body, Method, Request, StatusCode};
 use serde::{de::DeserializeOwned, Serialize};
