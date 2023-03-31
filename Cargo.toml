@@ -22,4 +22,3 @@ sea-orm = { version = "0.11.0", features = [
     "mock",
     "postgres-array",
 ] }
-openssl.features = ["vendored"]
