@@ -1,0 +1,23 @@
+name: test
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+  DATABASE_URL: postgres://postgres:postgres@localhost/postgres
+  DATABASE_BASE_URL: postgres://postgres:postgres@localhost
+  JWT_SECRET: secret
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: test
+      run: cargo test --verbose
