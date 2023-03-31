@@ -8,9 +8,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  DATABASE_URL: postgres://postgres:postgres@localhost/postgres
-  DATABASE_BASE_URL: postgres://postgres:postgres@localhost
-  JWT_SECRET: secret
 
 jobs:
   build:
@@ -21,3 +18,8 @@ jobs:
     - uses: actions/checkout@v3
     - name: test
       run: cargo test --verbose
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost/postgres
+        DATABASE_BASE_URL: postgres://postgres:postgres@localhost
+        JWT_SECRET: secret
+
