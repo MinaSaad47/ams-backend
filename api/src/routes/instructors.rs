@@ -3,19 +3,15 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-
 use jsonwebtoken::{encode, Header};
-use logic::{
-    error::RepoError,
-    instructors::{CreateInstructor, Instructor, UpdateInstructor},
-    subjects::{Subject, SubjectsFilter, UpdateSubject},
-};
 use uuid::Uuid;
+
+use logic::prelude::*;
 
 use crate::{
     auth::{AuthBody, AuthError, AuthPayload, Claims, User, KEYS},
     error::ApiError,
-    response::AppResponse,
+    response::{AppResponse, AppResponseDataExt, AppResponseMsgExt},
     DynAttendancesRepo, DynInstructorsRepo, DynSubjectsRepo,
 };
 
@@ -33,14 +29,17 @@ pub fn routes(instructors_state: InstructorsState) -> Router {
             "/instructors/:id",
             get(get_one).patch(update_one).delete(delete_one),
         )
-        .route("/instructors/<id>/subjects", post(get_all_subjects_for_one))
+        .route("/instructors/:id/subjects", get(get_all_subjects_for_one))
         .route(
-            "/instructors/<id>/subjects/<id>",
+            "/instructors/:id/subjects/:id",
             get(get_one_subject_for_one)
                 .put(put_one_subject_to_one)
                 .delete(delete_one_subject_from_one),
         )
-        .route("/instructors/login", post(login))
+        .route(
+            "/instructors/login",
+            post(login_with_creds).get(login_with_token),
+        )
         .with_state(instructors_state)
 }
 
@@ -59,13 +58,13 @@ pub fn routes(instructors_state: InstructorsState) -> Router {
 async fn get_all(
     State(repo): State<DynInstructorsRepo>,
     claimes: Claims,
-) -> Result<AppResponse<Vec<Instructor>>, ApiError> {
+) -> Result<AppResponse<'static, Vec<Instructor>>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
     let instructors = repo.get_all().await?;
-    let response = AppResponse::created(instructors, "retreived all instructors successfully");
+    let response = instructors.ok_response("retreived all instructors successfully");
     Ok(response)
 }
 
@@ -82,23 +81,20 @@ async fn create_one(
     State(repo): State<DynInstructorsRepo>,
     claimes: Claims,
     Json(instructor): Json<CreateInstructor>,
-) -> Result<AppResponse<Instructor>, ApiError> {
+) -> Result<AppResponse<'static, Instructor>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
     let instructor = repo.create(instructor).await?;
-    let response = AppResponse::created(instructor, "create on instructor successfully");
+    let response = instructor.create_response("create on instructor successfully");
 
     Ok(response)
 }
 
 #[utoipa::path(
     get,
-    path = "/instructors/{id}",
-    params(
-        ("id" = Uuid, Path, description = "instructor id"),
-    ),
+    path = "/instructors/{instructor_id}",
     responses(
         (status = CREATED, body = InstructorResponse)
     ),
@@ -106,26 +102,26 @@ async fn create_one(
 )]
 async fn get_one(
     State(repo): State<DynInstructorsRepo>,
-    Path(id): Path<Uuid>,
+    Path(instructor_id): Path<Uuid>,
     claimes: Claims,
-) -> Result<AppResponse<Instructor>, ApiError> {
-    let _ = match claimes.user {
+) -> Result<AppResponse<'static, Instructor>, ApiError> {
+    match claimes.user {
         User::Admin(_) => {}
-        User::Instructor(id) if id == id => {}
+        User::Instructor(id) if id == instructor_id => {}
         _ => {
             return Err(AuthError::UnauthorizedAccess.into());
         }
     };
 
-    let instructor = repo.get_by_id(id).await?;
-    let response = AppResponse::with_content(instructor, "retreived an instructor successfully");
+    let instructor = repo.get_by_id(instructor_id).await?;
+    let response = instructor.ok_response("retreived an instructor successfully");
 
     Ok(response)
 }
 
 #[utoipa::path(
     patch,
-    path = "/instructors/{id}",
+    path = "/instructors/{instructor_id}",
     params(
         ("id" = Uuid, Path, description = "instructor id"),
     ),
@@ -137,16 +133,16 @@ async fn get_one(
 )]
 async fn update_one(
     State(repo): State<DynInstructorsRepo>,
-    Path(id): Path<Uuid>,
+    Path(instructor_id): Path<Uuid>,
     claimes: Claims,
     Json(update_instructor): Json<UpdateInstructor>,
-) -> Result<AppResponse<Instructor>, ApiError> {
+) -> Result<AppResponse<'static, Instructor>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
-    let instructor = repo.update(id, update_instructor).await?;
-    let response = AppResponse::with_content(instructor, "update the instructor successfully");
+    let instructor = repo.update(instructor_id, update_instructor).await?;
+    let response = instructor.ok_response("update the instructor successfully");
 
     Ok(response)
 }
@@ -154,9 +150,6 @@ async fn update_one(
 #[utoipa::path(
     delete,
     path = "/instructors/{id}",
-    params(
-        ("id" = Uuid, Path, description = "instructor id"),
-    ),
     responses(
         (status = OK)
     ),
@@ -164,21 +157,21 @@ async fn update_one(
 )]
 async fn delete_one(
     State(repo): State<DynInstructorsRepo>,
-    Path(id): Path<Uuid>,
+    Path(instructor_id): Path<Uuid>,
     claimes: Claims,
-) -> Result<AppResponse<()>, ApiError> {
+) -> Result<AppResponse<'static, ()>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
-    repo.delete_by_id(id).await?;
-    let response = AppResponse::no_content("deleted one instructor successfully");
+    repo.delete_by_id(instructor_id).await?;
+    let response = "deleted one instructor successfully".response();
 
     Ok(response)
 }
 
 #[utoipa::path(
-    delete,
+    post,
     path = "/instructors/login",
     request_body = AuthPayload,
     responses(
@@ -186,10 +179,10 @@ async fn delete_one(
     ),
     security(("api_jwt_token" = []))
 )]
-async fn login(
+async fn login_with_creds(
     State(repo): State<DynInstructorsRepo>,
     Json(payload): Json<AuthPayload>,
-) -> Result<AppResponse<AuthBody>, ApiError> {
+) -> Result<AppResponse<'static, AuthBody>, ApiError> {
     let instructor = repo.get_by_email(payload.email).await?;
 
     if payload.password != instructor.password {
@@ -203,8 +196,29 @@ async fn login(
 
     let token = encode(&Header::default(), &claims, &KEYS.encoding).unwrap();
 
-    let response =
-        AppResponse::with_content(AuthBody { token }, "logged in as instructor successfully");
+    let response = AuthBody { token }.ok_response("logged in as instructor successfully");
+
+    Ok(response)
+}
+
+#[utoipa::path(
+    get,
+    path = "/instructors/login",
+    responses(
+        (status = OK, body = AuthResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn login_with_token(
+    State(repo): State<DynInstructorsRepo>,
+    claimes: Claims,
+) -> Result<AppResponse<'static, Instructor>, ApiError> {
+    let User::Instructor(instructor_id) = claimes.user else {
+        return Err(AuthError::UnauthorizedAccess.into());
+    } ;
+
+    let instructor = repo.get_by_id(instructor_id).await?;
+    let response = instructor.ok_response("logged in as instructor successfully");
 
     Ok(response)
 }
@@ -212,9 +226,6 @@ async fn login(
 #[utoipa::path(
     get,
     path = "/instructors/{instructor_id}/subjects",
-    params(
-        ("instructor_id" = Uuid, Path, description = "instructor id"),
-    ),
     responses(
         (status = OK, body = SubjectsListResponse)
     ),
@@ -224,8 +235,8 @@ async fn get_all_subjects_for_one(
     State(repo): State<DynSubjectsRepo>,
     Path(instructor_id): Path<Uuid>,
     claimes: Claims,
-) -> Result<AppResponse<Vec<Subject>>, ApiError> {
-    let _ = match claimes.user {
+) -> Result<AppResponse<'static, Vec<Subject>>, ApiError> {
+    match claimes.user {
         User::Admin(_) => {}
         User::Instructor(id) if id == instructor_id => {}
         _ => {
@@ -239,8 +250,7 @@ async fn get_all_subjects_for_one(
             ..Default::default()
         })
         .await?;
-    let response =
-        AppResponse::with_content(subjects, "retreived associated subjects successfully");
+    let response = subjects.ok_response("retreived associated subjects successfully");
 
     Ok(response)
 }
@@ -248,10 +258,6 @@ async fn get_all_subjects_for_one(
 #[utoipa::path(
     get,
     path = "/instructors/{instructor_id}/subjects/{subject_id}",
-    params(
-        ("instructor_id" = Uuid, Path, description = "instructor id"),
-        ("subject_id" = Uuid, Path, description = "subject id"),
-    ),
     responses(
         (status = OK, body = SubjectResponse)
     ),
@@ -261,8 +267,8 @@ async fn get_one_subject_for_one(
     State(repo): State<DynSubjectsRepo>,
     Path((instructor_id, subject_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,
-) -> Result<AppResponse<Subject>, ApiError> {
-    let _ = match claimes.user {
+) -> Result<AppResponse<'static, Subject>, ApiError> {
+    match claimes.user {
         User::Admin(_) => {}
         User::Instructor(id) if id == instructor_id => {}
         _ => {
@@ -278,11 +284,11 @@ async fn get_one_subject_for_one(
         })
         .await?;
 
-    let Some(subject) = subjects.into_iter().nth(0) else {
+    let Some(subject) = subjects.into_iter().next() else {
         return Err(RepoError::NotFound("subject".to_owned()).into());
     };
 
-    let response = AppResponse::with_content(subject, "retreived associated subjects successfully");
+    let response = subject.create_response("retreived associated subjects successfully");
 
     Ok(response)
 }
@@ -290,10 +296,6 @@ async fn get_one_subject_for_one(
 #[utoipa::path(
     put,
     path = "/instructors/{instructor_id}/subjects/{subject_id}",
-    params(
-        ("instructor_id" = Uuid, Path, description = "instructor id"),
-        ("subject_id" = Uuid, Path, description = "subject id"),
-    ),
     responses(
         (status = OK, body = SubjectResponse)
     ),
@@ -303,7 +305,7 @@ async fn put_one_subject_to_one(
     State(repo): State<DynSubjectsRepo>,
     Path((instructor_id, subject_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,
-) -> Result<AppResponse<Subject>, ApiError> {
+) -> Result<AppResponse<'static, Subject>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
@@ -318,8 +320,7 @@ async fn put_one_subject_to_one(
         )
         .await?;
 
-    let response =
-        AppResponse::with_content(subject, "assigned an instructor to a subject successfully");
+    let response = subject.create_response("assigned an instructor to a subject successfully");
 
     Ok(response)
 }
@@ -327,10 +328,6 @@ async fn put_one_subject_to_one(
 #[utoipa::path(
     delete,
     path = "/instructors/{instructor_id}/subjects/{subject_id}",
-    params(
-        ("instructor_id" = Uuid, Path, description = "instructor id"),
-        ("subject_id" = Uuid, Path, description = "subject id"),
-    ),
     responses(
         (status = OK, body = SubjectResponse)
     ),
@@ -340,7 +337,7 @@ async fn delete_one_subject_from_one(
     State(repo): State<DynSubjectsRepo>,
     Path((instructor_id, subject_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,
-) -> Result<AppResponse<Subject>, ApiError> {
+) -> Result<AppResponse<'static, Subject>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
@@ -365,10 +362,7 @@ async fn delete_one_subject_from_one(
             },
         )
         .await?;
-    let response = AppResponse::with_content(
-        subject,
-        "removed the instructor from the subject successfully",
-    );
+    let response = subject.ok_response("removed the instructor from the subject successfully");
 
     Ok(response)
 }

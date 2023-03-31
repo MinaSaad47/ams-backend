@@ -2,11 +2,11 @@
 
 use sea_orm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "instructors_subjects")]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Default)]
+#[sea_orm(table_name = "attendees_subjects")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    pub instructor_id: Uuid,
+    pub attendee_id: Uuid,
     #[sea_orm(primary_key, auto_increment = false)]
     pub subject_id: Uuid,
 }
@@ -14,13 +14,13 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(
-        belongs_to = "super::instructors::Entity",
-        from = "Column::InstructorId",
-        to = "super::instructors::Column::Id",
+        belongs_to = "super::attendees::Entity",
+        from = "Column::AttendeeId",
+        to = "super::attendees::Column::Id",
         on_update = "NoAction",
         on_delete = "Cascade"
     )]
-    Instructors,
+    Attendees,
     #[sea_orm(
         belongs_to = "super::subjects::Entity",
         from = "Column::SubjectId",
@@ -31,9 +31,9 @@ pub enum Relation {
     Subjects,
 }
 
-impl Related<super::instructors::Entity> for Entity {
+impl Related<super::attendees::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Instructors.def()
+        Relation::Attendees.def()
     }
 }
 
