@@ -46,7 +46,10 @@ pub fn routes(attendees_state: AttendeesState) -> Router {
             "/attendees/:id/subjects/:id/attendances",
             get(get_all_attendances_with_one_attendee_and_one_subject),
         )
-        .route("/attendees/login", post(login))
+        .route(
+            "/attendees/login",
+            post(login_with_creds).get(login_with_token),
+        )
         .with_state(attendees_state)
 }
 
@@ -167,6 +170,27 @@ async fn create_one(
 
 #[utoipa::path(
     get,
+    path = "/attendees/login",
+    responses(
+        (status = OK, body = AttendeeResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn login_with_token(
+    State(repo): State<DynAttendeesRepo>,
+    claimes: Claims,
+) -> Result<AppResponse<'static, Attendee>, ApiError> {
+    let User::Attendee(attendee_id) = claimes.user else {
+        return Err(AuthError::UnauthorizedAccess.into());
+    };
+    let attendee = repo.get_by_id(attendee_id).await?;
+    let response = attendee.ok_response("logged in as attendee successfully");
+
+    Ok(response)
+}
+
+#[utoipa::path(
+    get,
     path = "/attendees/{attendee_id}",
     responses(
         (status = OK, body = AttendeeResponse)
@@ -248,7 +272,7 @@ async fn delete_one(
     ),
     security(("api_jwt_token" = []))
 )]
-async fn login(
+async fn login_with_creds(
     State(repo): State<DynAttendeesRepo>,
     Json(payload): Json<AuthPayload>,
 ) -> Result<AppResponse<'static, AuthBody>, ApiError> {

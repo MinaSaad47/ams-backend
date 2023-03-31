@@ -20,7 +20,8 @@ pub struct Image {
     paths(
         crate::routes::admins::login,
 
-        crate::routes::instructors::login,
+        crate::routes::instructors::login_with_creds,
+        crate::routes::instructors::login_with_token,
         crate::routes::instructors::get_all,
         crate::routes::instructors::get_one,
         crate::routes::instructors::create_one,
@@ -31,7 +32,8 @@ pub struct Image {
         crate::routes::instructors::put_one_subject_to_one,
         crate::routes::instructors::delete_one_subject_from_one,
 
-        crate::routes::attendees::login,
+        crate::routes::attendees::login_with_creds,
+        crate::routes::attendees::login_with_token,
         crate::routes::attendees::get_all,
         crate::routes::attendees::get_all_with_image,
         crate::routes::attendees::get_one,

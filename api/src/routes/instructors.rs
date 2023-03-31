@@ -36,7 +36,10 @@ pub fn routes(instructors_state: InstructorsState) -> Router {
                 .put(put_one_subject_to_one)
                 .delete(delete_one_subject_from_one),
         )
-        .route("/instructors/login", post(login))
+        .route(
+            "/instructors/login",
+            post(login_with_creds).get(login_with_token),
+        )
         .with_state(instructors_state)
 }
 
@@ -176,7 +179,7 @@ async fn delete_one(
     ),
     security(("api_jwt_token" = []))
 )]
-async fn login(
+async fn login_with_creds(
     State(repo): State<DynInstructorsRepo>,
     Json(payload): Json<AuthPayload>,
 ) -> Result<AppResponse<'static, AuthBody>, ApiError> {
@@ -194,6 +197,28 @@ async fn login(
     let token = encode(&Header::default(), &claims, &KEYS.encoding).unwrap();
 
     let response = AuthBody { token }.ok_response("logged in as instructor successfully");
+
+    Ok(response)
+}
+
+#[utoipa::path(
+    get,
+    path = "/instructors/login",
+    responses(
+        (status = OK, body = AuthResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn login_with_token(
+    State(repo): State<DynInstructorsRepo>,
+    claimes: Claims,
+) -> Result<AppResponse<'static, Instructor>, ApiError> {
+    let User::Instructor(instructor_id) = claimes.user else {
+        return Err(AuthError::UnauthorizedAccess.into());
+    } ;
+
+    let instructor = repo.get_by_id(instructor_id).await?;
+    let response = instructor.ok_response("logged in as instructor successfully");
 
     Ok(response)
 }
