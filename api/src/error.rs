@@ -25,15 +25,21 @@ impl IntoResponse for ApiError {
             ApiError::RepoError(error) => match error {
                 RepoError::NotFound(_) => (
                     StatusCode::NOT_FOUND,
-                    Json(json!({"status": false, "message": error.to_string()})),
+                    Json(
+                        json!({"code": StatusCode::NOT_FOUND.as_u16(), "status": false, "message": error.to_string()}),
+                    ),
                 ),
                 RepoError::Duplicate(_, _) => (
                     StatusCode::CONFLICT,
-                    Json(json!({"status": false, "message": error.to_string()})),
+                    Json(
+                        json!({"code": StatusCode::CONFLICT.as_u16(), "status": false, "message": error.to_string()}),
+                    ),
                 ),
                 RepoError::Unknown => (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({"status": false, "message": "internal server error"})),
+                    Json(
+                        json!({"code": StatusCode::INTERNAL_SERVER_ERROR.as_u16(), "status": false, "message": "internal server error"}),
+                    ),
                 ),
             },
             ApiError::AuthError(error) => {
