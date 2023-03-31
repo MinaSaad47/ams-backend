@@ -2,8 +2,8 @@
 
 use sea_orm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
-#[sea_orm(table_name = "attendees")]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Default)]
+#[sea_orm(table_name = "instructors")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
@@ -13,29 +13,19 @@ pub struct Model {
     #[sea_orm(unique)]
     pub email: String,
     pub password: String,
-    pub embedding: Option<Vec<f64>>,
     pub create_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_many = "super::attendances::Entity")]
-    Attendances,
-}
-
-impl Related<super::attendances::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Attendances.def()
-    }
+    #[sea_orm(has_many = "super::subjects::Entity")]
+    Subjects,
 }
 
 impl Related<super::subjects::Entity> for Entity {
     fn to() -> RelationDef {
-        super::attendees_subjects::Relation::Subjects.def()
-    }
-    fn via() -> Option<RelationDef> {
-        Some(super::attendees_subjects::Relation::Attendees.def().rev())
+        Relation::Subjects.def()
     }
 }
 

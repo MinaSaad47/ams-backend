@@ -1,32 +1,17 @@
-use chrono::{DateTime, FixedOffset};
+use std::sync::Arc;
+
 use sea_orm::{
-    prelude::async_trait::async_trait, ActiveModelTrait, ColumnTrait, DatabaseConnection,
-    EntityTrait, JoinType, LoaderTrait, ModelTrait, QueryFilter, QuerySelect, QueryTrait,
-    RelationTrait, Set,
+    prelude::{async_trait::async_trait, *},
+    sea_query::Query,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryTrait, Set,
 };
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 use uuid::Uuid;
 
-use crate::{
-    database::{attendees, attendees_subjects, instructors, subjects},
-    error::RepoError,
-    instructors::Instructor,
-};
+pub use crate::prelude::*;
 
-#[cfg_attr(test, mockall::automock)]
-#[async_trait]
-pub trait SubjectsRepoTrait {
-    async fn create(&self, subject: CreateSubject) -> Result<Subject, RepoError>;
-    async fn get_by_id(&self, id: Uuid) -> Result<Subject, RepoError>;
-    async fn get(&self, filter: SubjectsFilter) -> Result<Vec<Subject>, RepoError>;
-    async fn update(&self, id: Uuid, update_subject: UpdateSubject) -> Result<Subject, RepoError>;
-    async fn add_attendee(&self, id: Uuid, attendee_id: Uuid) -> Result<(), RepoError>;
-    async fn remove_attendee(&self, id: Uuid, attendee_id: Uuid) -> Result<(), RepoError>;
-    async fn delete_by_id(&self, id: Uuid) -> Result<(), RepoError>;
-}
+use crate::entity::{attendees_subjects, instructors, subjects};
 
-pub struct SubjectsRepository(pub DatabaseConnection);
+pub struct SubjectsRepository(pub Arc<DatabaseConnection>);
 
 impl AsRef<DatabaseConnection> for SubjectsRepository {
     fn as_ref(&self) -> &DatabaseConnection {
@@ -39,7 +24,7 @@ impl SubjectsRepoTrait for SubjectsRepository {
     async fn create(&self, subject: CreateSubject) -> Result<Subject, RepoError> {
         let subject = subjects::ActiveModel {
             name: Set(subject.name),
-            cron_expr: Set(subject.cron_expr),
+            cron_expr: Set(subject.cron_expr.to_string()),
             ..Default::default()
         }
         .insert(self.as_ref())
@@ -51,7 +36,7 @@ impl SubjectsRepoTrait for SubjectsRepository {
         let subject = subjects::Entity::find_by_id(id)
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound("subject".to_owned()))?;
+            .ok_or(RepoError::NotFound("subjects".to_owned()))?;
 
         let instructor = subject
             .find_related(instructors::Entity)
@@ -73,18 +58,24 @@ impl SubjectsRepoTrait for SubjectsRepository {
                 query.filter(subjects::Column::InstructorId.eq(instructor))
             })
             .apply_if(filter.attendee_id, |qeury, attendee| {
-                qeury
-                    .join(
-                        JoinType::LeftJoin,
-                        attendees_subjects::Relation::Attendees.def(),
-                    )
-                    .filter(attendees::Column::Id.eq(attendee))
+                qeury.filter(
+                    subjects::Column::Id.in_subquery(
+                        Query::select()
+                            .column(attendees_subjects::Column::SubjectId)
+                            .from(attendees_subjects::Entity)
+                            .and_where(attendees_subjects::Column::SubjectId.eq(attendee))
+                            .to_owned(),
+                    ),
+                )
             })
             .all(self.as_ref())
-            .await
+            .await?
             .into_iter()
-            .flatten()
             .collect();
+
+        if subjects.is_empty() {
+            return Err(RepoError::NotFound("subjects".to_owned()));
+        }
 
         let instructors: Vec<Option<Instructor>> = subjects
             .load_one(instructors::Entity, self.as_ref())
@@ -109,14 +100,14 @@ impl SubjectsRepoTrait for SubjectsRepository {
         let mut subject: subjects::ActiveModel = subjects::Entity::find_by_id(id)
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound("subject".to_owned()))?
+            .ok_or(RepoError::NotFound("subjects".to_owned()))?
             .into();
 
         if let Some(name) = name {
             subject.name = Set(name);
         }
         if let Some(cron_expr) = cron_expr {
-            subject.cron_expr = Set(cron_expr);
+            subject.cron_expr = Set(cron_expr.to_string());
         }
         if let Some(instructor_id) = instructor_id {
             subject.instructor_id = Set(instructor_id);
@@ -150,9 +141,7 @@ impl SubjectsRepoTrait for SubjectsRepository {
             )
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound(
-                "subject don't belog to attendee".to_owned(),
-            ))?
+            .ok_or(RepoError::NotFound("attendees_subjects".to_owned()))?
             .into();
         attedee_subject.delete(self.as_ref()).await?;
         Ok(())
@@ -163,64 +152,4 @@ impl SubjectsRepoTrait for SubjectsRepository {
             .await?;
         Ok(())
     }
-}
-
-#[derive(Deserialize, Serialize, Debug, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct Subject {
-    pub id: Uuid,
-    pub name: String,
-    pub instructor: Option<Instructor>,
-    pub cron_expr: String,
-    pub create_at: DateTime<FixedOffset>,
-    pub updated_at: DateTime<FixedOffset>,
-}
-
-impl From<(subjects::Model, Option<Instructor>)> for Subject {
-    fn from(
-        (
-            subjects::Model {
-                id,
-                name,
-                cron_expr,
-                create_at,
-                updated_at,
-                ..
-            },
-            instructor,
-        ): (subjects::Model, Option<Instructor>),
-    ) -> Self {
-        Self {
-            id,
-            name,
-            instructor,
-            cron_expr,
-            create_at,
-            updated_at,
-        }
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CreateSubject {
-    pub name: String,
-    pub cron_expr: String,
-}
-
-#[derive(Deserialize, Serialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateSubject {
-    pub name: Option<String>,
-    pub cron_expr: Option<String>,
-    #[serde(skip)]
-    pub instructor_id: Option<Option<Uuid>>,
-}
-
-#[derive(Default)]
-pub struct SubjectsFilter {
-    pub id: Option<Uuid>,
-    pub name: Option<String>,
-    pub instructor_id: Option<Uuid>,
-    pub attendee_id: Option<Uuid>,
 }

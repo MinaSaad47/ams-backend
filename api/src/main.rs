@@ -3,6 +3,7 @@ mod error;
 mod openapi_doc;
 mod response;
 mod routes;
+mod test_utils;
 
 use std::{net::SocketAddr, sync::Arc};
 
@@ -13,8 +14,11 @@ use openapi_doc::ApiDoc;
 use sea_orm::Database;
 use tower::ServiceBuilder;
 use tower_http::{
-    compression::CompressionLayer, normalize_path::NormalizePathLayer, trace::TraceLayer,
+    compression::CompressionLayer,
+    normalize_path::NormalizePathLayer,
+    trace::{DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
+use tracing::Level;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -25,13 +29,8 @@ use crate::routes::{
     instructors::{self, InstructorsState},
     subjects,
 };
-use logic::{
-    admins::{AdminsRepo, AdminsRepoTrait},
-    attendances::{AttendancesRepo, AttendancesRepoTrait},
-    attendees::{AttendeesRepo, AttendeesRepoTrait},
-    instructors::{InstructorsRepo, InstructorsRepoTrait},
-    subjects::{SubjectsRepoTrait, SubjectsRepository},
-};
+
+use logic::prelude::*;
 
 pub type DynAdminsRepo = Arc<dyn AdminsRepoTrait + Send + Sync>;
 pub type DynInstructorsRepo = Arc<dyn InstructorsRepoTrait + Send + Sync>;
@@ -42,18 +41,20 @@ pub type DynSubjectsRepo = Arc<dyn SubjectsRepoTrait + Send + Sync>;
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
+        .with_max_level(tracing::Level::INFO)
         .with_test_writer()
         .pretty()
         .init();
 
     dotenv().ok();
 
-    let db = Database::connect(dotenv!("DATABASE_URL"))
-        .await
-        .expect("posgresql connection");
+    let db = Arc::new(
+        Database::connect(dotenv!("DATABASE_URL"))
+            .await
+            .expect("posgresql connection"),
+    );
 
-    let admins_repo = Arc::new(AdminsRepo(db.clone()));
+    let admins_repo = Arc::new(AdminsRepoPg(db.clone()));
     let instructors_repo = Arc::new(InstructorsRepo(db.clone()));
     let attendees_repo = Arc::new(AttendeesRepo(db.clone()));
     let subjects_repo = Arc::new(SubjectsRepository(db.clone()));
@@ -79,13 +80,18 @@ async fn main() {
                 .merge(attendees::routes(AttendeesState {
                     attendees_repo: attendees_repo.clone(),
                     subjects_repo: subjects_repo.clone(),
-                    attedances_repo: attendances_repo.clone(),
+                    attendances_repo: attendances_repo.clone(),
                 }))
                 .merge(subjects::routes(subjects_repo.clone())),
         )
         .layer(
             ServiceBuilder::new()
-                .layer(TraceLayer::new_for_http())
+                .layer(
+                    TraceLayer::new_for_http()
+                        .on_request(DefaultOnRequest::new().level(Level::INFO))
+                        .on_response(DefaultOnResponse::new().level(Level::INFO))
+                        .on_failure(DefaultOnFailure::new().level(Level::INFO)),
+                )
                 .layer(NormalizePathLayer::trim_trailing_slash())
                 .layer(CompressionLayer::new()),
         );

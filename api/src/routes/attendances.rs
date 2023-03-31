@@ -3,14 +3,14 @@ use axum::{
     routing::{get, put},
     Router,
 };
-
-use logic::attendances::{Attendance, AttendancesFilter, CreateAttendance};
 use uuid::Uuid;
+
+use logic::prelude::*;
 
 use crate::{
     auth::{AuthError, Claims, User},
     error::ApiError,
-    response::AppResponse,
+    response::{AppResponse, AppResponseDataExt},
     DynAttendancesRepo, DynSubjectsRepo,
 };
 
@@ -29,10 +29,7 @@ pub fn routes(attendances_state: AttandancesState) -> Router {
 
 #[utoipa::path(
     get,
-    path = "/attendances/subjects/{id}",
-    params(
-        ("id" = Uuid, Path, description = "subject id"),
-    ),
+    path = "/attendances/subjects/{subject_id}",
     responses(
         (status = OK, body = AttendancesListResponse)
     ),
@@ -41,12 +38,12 @@ pub fn routes(attendances_state: AttandancesState) -> Router {
 pub async fn get_all_for_one_subject(
     State(attendances_repo): State<DynAttendancesRepo>,
     State(subjects_repo): State<DynSubjectsRepo>,
-    Path(id): Path<Uuid>,
+    Path(subject_id): Path<Uuid>,
     claimes: Claims,
-) -> Result<AppResponse<Vec<Attendance>>, ApiError> {
-    let _ = match claimes.user {
+) -> Result<AppResponse<'static, Vec<Attendance>>, ApiError> {
+    match claimes.user {
         User::Admin(_) => {}
-        User::Instructor(id) if id == subjects_repo.get_by_id(id).await?.id => {}
+        User::Instructor(id) if id == subjects_repo.get_by_id(subject_id).await?.id => {}
         _ => {
             return Err(AuthError::UnauthorizedAccess.into());
         }
@@ -54,15 +51,12 @@ pub async fn get_all_for_one_subject(
 
     let attendances = attendances_repo
         .get(AttendancesFilter {
-            subject_id: Some(id),
+            subject_id: Some(subject_id),
             ..Default::default()
         })
         .await?;
 
-    let response = AppResponse::with_content(
-        attendances,
-        "retreived all attendances for a subject successfully",
-    );
+    let response = attendances.ok_response("retreived all attendances for a subject successfully");
 
     Ok(response)
 }
@@ -70,10 +64,6 @@ pub async fn get_all_for_one_subject(
 #[utoipa::path(
     post,
     path = "/attendances/subjects/{subject_id}/attendees/{attendee_id}",
-    params(
-        ("subject_id" = Uuid, Path, description = "subject id"),
-        ("attendee_id" = Uuid, Path, description = "attendee id"),
-    ),
     responses(
         (status = OK, body = AttendanceResponse)
     ),
@@ -83,8 +73,8 @@ pub async fn create_one(
     State(repo): State<DynAttendancesRepo>,
     Path((subject_id, attendee_id)): Path<(Uuid, Uuid)>,
     claimes: Claims,
-) -> Result<AppResponse<Attendance>, ApiError> {
-    let _ = match claimes.user {
+) -> Result<AppResponse<'static, Attendance>, ApiError> {
+    match claimes.user {
         User::Admin(_) => {}
         User::Instructor(id) if id == repo.get_by_id(id).await?.id => {}
         _ => {
@@ -99,7 +89,7 @@ pub async fn create_one(
         })
         .await?;
 
-    let respone = AppResponse::with_content(attendance, "attendance was taken successfully");
+    let respone = attendance.create_response("attendance was taken successfully");
 
     Ok(respone)
 }

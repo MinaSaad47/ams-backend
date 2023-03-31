@@ -1,11 +1,11 @@
+use std::borrow::Cow;
+
 use axum::{http::StatusCode, response::IntoResponse, Json};
-use logic::{
-    admins::Admin, attendances::Attendance, attendees::Attendee, instructors::Instructor,
-    subjects::Subject,
-};
 use sea_orm::sea_query::tests_cfg::json;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+
+use logic::prelude::*;
 
 use crate::auth::AuthBody;
 
@@ -18,71 +18,95 @@ pub struct SubjectsList(#[schema(inline)] Vec<Subject>);
 #[derive(Debug, ToSchema, Serialize)]
 pub struct AttendancesList(#[schema(inline)] Vec<Attendance>);
 
-#[derive(Debug, ToSchema)]
+#[derive(Debug, ToSchema, Serialize, Deserialize)]
 #[aliases(
-    AuthResponse = AppResponse<AuthBody>,
-    AdminResponse = AppResponse<Admin>,
-    InstructorResponse = AppResponse<Instructor>,
-    InstructorsListResponse = AppResponse<InstructorsList>,
-    AttendeeResponse = AppResponse<Attendee>,
-    AttendeesListResponse = AppResponse<AttendeesList>,
-    SubjectResponse = AppResponse<Subject>,
-    SubjectsListResponse = AppResponse<SubjectsList>,
-    AttendanceResponse = AppResponse<Attendance>,
-    AttendancesListResponse = AppResponse<AttendancesList>
+    AuthResponse = AppResponse<'a, AuthBody>,
+    AdminResponse = AppResponse<'a, Admin>,
+    InstructorResponse = AppResponse<'a, Instructor>,
+    InstructorsListResponse = AppResponse<'a, InstructorsList>,
+    AttendeeResponse = AppResponse<'a, Attendee>,
+    AttendeesListResponse = AppResponse<'a, AttendeesList>,
+    SubjectResponse = AppResponse<'a, Subject>,
+    SubjectsListResponse = AppResponse<'a, SubjectsList>,
+    AttendanceResponse = AppResponse<'a, Attendance>,
+    AttendancesListResponse = AppResponse<'a, AttendancesList>
 )]
-pub struct AppResponse<Data>
-where
-    Data: Serialize,
-{
+pub struct AppResponse<'a, Data> {
     #[schema(value_type = i16, example = 200)]
-    pub code: StatusCode,
-    pub message: String,
+    pub code: u16,
+    pub message: Cow<'a, str>,
     pub data: Option<Data>,
 }
 
-impl<Data> AppResponse<Data>
+pub trait AppResponseMsgExt<'a>
 where
-    Data: Serialize,
+    Self: Into<Cow<'a, str>>,
 {
-    pub fn created(data: Data, message: &str) -> Self {
-        Self {
-            code: StatusCode::CREATED,
-            message: message.to_owned(),
-            data: Some(data),
-        }
-    }
-    pub fn no_content(message: &str) -> Self {
-        Self {
-            code: StatusCode::OK,
-            message: message.to_owned(),
+    fn response(self) -> AppResponse<'a, ()> {
+        AppResponse {
+            code: StatusCode::OK.into(),
+            message: self.into(),
             data: None,
-        }
-    }
-    pub fn with_content(data: Data, message: &str) -> Self {
-        Self {
-            code: StatusCode::OK,
-            message: message.to_owned(),
-            data: Some(data),
         }
     }
 }
 
-impl<Data> IntoResponse for AppResponse<Data>
+impl<'a> AppResponseMsgExt<'a> for &'a str {}
+impl<'a> AppResponseMsgExt<'a> for String {}
+
+impl<'a, T> From<T> for AppResponse<'a, ()>
+where
+    T: Into<Cow<'a, str>>,
+{
+    fn from(value: T) -> Self {
+        Self {
+            code: StatusCode::OK.into(),
+            message: value.into(),
+            data: None,
+        }
+    }
+}
+
+pub trait AppResponseDataExt<'a, Msg>
+where
+    Self: Sized + Serialize,
+    Msg: Into<Cow<'a, str>>,
+{
+    fn create_response(self, message: Msg) -> AppResponse<'a, Self> {
+        AppResponse {
+            code: StatusCode::CREATED.into(),
+            message: message.into(),
+            data: Some(self),
+        }
+    }
+    fn ok_response(self, message: Msg) -> AppResponse<'a, Self> {
+        AppResponse {
+            code: StatusCode::OK.into(),
+            message: message.into(),
+            data: Some(self),
+        }
+    }
+}
+
+impl<'a, Data, Msg> AppResponseDataExt<'a, Msg> for Data
+where
+    Data: Sized + Serialize,
+    Msg: Into<Cow<'a, str>>,
+{
+}
+
+impl<'a, Data> IntoResponse for AppResponse<'a, Data>
 where
     Data: Serialize,
 {
     fn into_response(self) -> axum::response::Response {
         match self.data {
-            Some(data) => {
-                Json(json!({"code": self.code.as_u16(), "status": true, "message": self.message, "data": data}))
-                    .into_response()
-            }
-            None =>  {
-
-                Json(json!({"code": self.code.as_u16(), "status": true, "message": self.message}))
-                    .into_response()
-            }
+            Some(data) => Json(
+                json!({"code": self.code, "status": true, "message": self.message, "data": data}),
+            )
+            .into_response(),
+            None => Json(json!({"code": self.code, "status": true, "message": self.message}))
+                .into_response(),
         }
     }
 }

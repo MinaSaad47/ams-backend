@@ -1,30 +1,17 @@
-use chrono::{DateTime, FixedOffset};
+use std::sync::Arc;
+
 use sea_orm::{
-    prelude::async_trait::async_trait, ActiveModelTrait, ColumnTrait, DatabaseConnection,
-    EntityTrait, LoaderTrait, ModelTrait, QueryFilter, QueryTrait, Set,
-};
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
-use uuid::Uuid;
-
-use crate::{
-    attendees::Attendee,
-    database::{attendances, attendees, instructors, subjects},
-    error::RepoError,
-    instructors::Instructor,
-    subjects::Subject,
+    prelude::{async_trait::async_trait, *},
+    QueryTrait, Set,
 };
 
-#[async_trait]
-pub trait AttendancesRepoTrait {
-    async fn create(&self, attendance: CreateAttendance) -> Result<Attendance, RepoError>;
-    async fn delete_by_id(&self, id: Uuid) -> Result<(), RepoError>;
-    async fn get(&self, attendaces_filter: AttendancesFilter)
-        -> Result<Vec<Attendance>, RepoError>;
-    async fn get_by_id(&self, id: Uuid) -> Result<Attendance, RepoError>;
-}
+use super::*;
 
-pub struct AttendancesRepo(pub DatabaseConnection);
+use crate::prelude::*;
+
+use crate::entity::{attendances, attendees, instructors, subjects};
+
+pub struct AttendancesRepo(pub Arc<DatabaseConnection>);
 
 impl AsRef<DatabaseConnection> for AttendancesRepo {
     fn as_ref(&self) -> &DatabaseConnection {
@@ -32,7 +19,6 @@ impl AsRef<DatabaseConnection> for AttendancesRepo {
     }
 }
 
-#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 impl AttendancesRepoTrait for AttendancesRepo {
     async fn create(&self, attendance: CreateAttendance) -> Result<Attendance, RepoError> {
@@ -42,8 +28,7 @@ impl AttendancesRepoTrait for AttendancesRepo {
             ..Default::default()
         }
         .insert(self.as_ref())
-        .await?
-        .into();
+        .await?;
 
         Ok(self.get_by_id(attendance.id).await?)
     }
@@ -62,10 +47,13 @@ impl AttendancesRepoTrait for AttendancesRepo {
                 query.filter(attendances::Column::SubjectId.eq(attendee))
             })
             .all(self.as_ref())
-            .await
+            .await?
             .into_iter()
-            .flatten()
             .collect();
+
+        if attendances.is_empty() {
+            return Err(RepoError::NotFound("attendances".to_owned()));
+        }
 
         let attendees = attendances
             .load_one(attendees::Entity, self.as_ref())
@@ -102,20 +90,20 @@ impl AttendancesRepoTrait for AttendancesRepo {
         let attendance = attendances::Entity::find_by_id(id)
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound("attendacne".to_owned()))?;
+            .ok_or(RepoError::NotFound("attendacnes".to_owned()))?;
 
         let attendee = attendance
             .find_related(attendees::Entity)
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound("attendee".to_owned()))?
+            .ok_or(RepoError::NotFound("attendees".to_owned()))?
             .into();
 
         let subject = attendance
             .find_related(subjects::Entity)
             .one(self.as_ref())
             .await?
-            .ok_or(RepoError::NotFound("subject".to_owned()))?;
+            .ok_or(RepoError::NotFound("subjects".to_owned()))?;
 
         let instructor = subject
             .find_related(instructors::Entity)
@@ -125,43 +113,4 @@ impl AttendancesRepoTrait for AttendancesRepo {
 
         Ok((attendance, attendee, (subject, instructor).into()).into())
     }
-}
-
-#[derive(Deserialize, Serialize, Debug, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct Attendance {
-    pub id: Uuid,
-    pub attendee: Attendee,
-    pub subject: Subject,
-    pub create_at: DateTime<FixedOffset>,
-}
-
-impl From<(attendances::Model, Attendee, Subject)> for Attendance {
-    fn from(
-        (attendances::Model { id, create_at, .. }, attendee, subject): (
-            attendances::Model,
-            Attendee,
-            Subject,
-        ),
-    ) -> Self {
-        Self {
-            id,
-            attendee,
-            subject,
-            create_at,
-        }
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CreateAttendance {
-    pub attendee_id: Uuid,
-    pub subject_id: Uuid,
-}
-
-#[derive(Default)]
-pub struct AttendancesFilter {
-    pub subject_id: Option<Uuid>,
-    pub attendee_id: Option<Uuid>,
 }
