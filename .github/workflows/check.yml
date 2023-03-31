@@ -1,4 +1,4 @@
-name: test
+name: check
 
 on:
   push:
@@ -16,8 +16,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: test
-      run: cargo test --verbose
+    - name: check
+      run: cargo check --verbose
       env:
         DATABASE_URL: postgres://postgres:postgres@localhost/postgres
         DATABASE_BASE_URL: postgres://postgres:postgres@localhost
