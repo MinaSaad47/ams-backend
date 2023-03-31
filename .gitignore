@@ -1,4 +1,3 @@
 /target
-.env
 container-compose.yaml
 /nn-model/model
