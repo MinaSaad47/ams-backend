@@ -31,7 +31,7 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            target/            
+            target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
       - uses: actions-rs/cargo@v1
@@ -39,13 +39,6 @@ jobs:
           use-cross: true
           command: build
           args: --release --target=${{ matrix.target }}
-      - name: stripping the binary
-        run: |
-         if [ "$RUNNER_OS" == "Windows" ]; then
-              strip target/${{ matrix.target }}/release/api.exe
-         else
-              strip target/${{ matrix.target }}/release/api
-         fi
       - uses: actions/upload-artifact@v3
         with:
           name: binary-artifact
