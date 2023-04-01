@@ -39,7 +39,7 @@ jobs:
           use-cross: true
           command: build
           args: --release --target=${{ matrix.target }}
-      - run: strip target/${{ matrix.target }}/release/api
+      - run: strip target/${{ matrix.target }}/release/api*
       - uses: actions/upload-artifact@v3
         with:
           name: binary-artifact
