@@ -39,7 +39,11 @@ jobs:
           use-cross: true
           command: build
           args: --release --target=${{ matrix.target }}
-      - run: strip target/${{ matrix.target }}/release/api*
+      - name: stripping the binary
+      - if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: strip target/${{ matrix.target }}/release/api
+      - if: matrix.target == 'x86_64-pc-windows-gnu'
+        run: strip target/${{ matrix.target }}/release/api.exe
       - uses: actions/upload-artifact@v3
         with:
           name: binary-artifact
