@@ -40,10 +40,12 @@ jobs:
           command: build
           args: --release --target=${{ matrix.target }}
       - name: stripping the binary
-      - if: matrix.target == 'x86_64-unknown-linux-gnu'
-        run: strip target/${{ matrix.target }}/release/api
-      - if: matrix.target == 'x86_64-pc-windows-gnu'
-        run: strip target/${{ matrix.target }}/release/api.exe
+        run: |
+         if [ "$RUNNER_OS" == "Windows" ]; then
+              strip target/${{ matrix.target }}/release/api.exe
+         else
+              strip target/${{ matrix.target }}/release/api
+         fi
       - uses: actions/upload-artifact@v3
         with:
           name: binary-artifact
