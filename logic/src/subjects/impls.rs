@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 pub use crate::prelude::*;
 
-use crate::entity::{attendees_subjects, instructors, subjects};
+use crate::entity::{attendees, attendees_subjects, instructors, subjects};
 
 pub struct SubjectsRepository(pub Arc<DatabaseConnection>);
 
@@ -63,7 +63,7 @@ impl SubjectsRepoTrait for SubjectsRepository {
                         Query::select()
                             .column(attendees_subjects::Column::SubjectId)
                             .from(attendees_subjects::Entity)
-                            .and_where(attendees_subjects::Column::SubjectId.eq(attendee))
+                            .and_where(attendees_subjects::Column::AttendeeId.eq(attendee))
                             .to_owned(),
                     ),
                 )
@@ -151,5 +151,24 @@ impl SubjectsRepoTrait for SubjectsRepository {
             .exec(self.as_ref())
             .await?;
         Ok(())
+    }
+
+    async fn get_all_attendees(&self, id: Uuid) -> Result<Vec<Attendee>, RepoError> {
+        let attendees: Vec<attendees::Model> = attendees::Entity::find()
+            .filter(
+                attendees::Column::Id.in_subquery(
+                    Query::select()
+                        .column(attendees_subjects::Column::AttendeeId)
+                        .from(attendees_subjects::Entity)
+                        .and_where(attendees_subjects::Column::SubjectId.eq(id))
+                        .to_owned(),
+                ),
+            )
+            .all(self.as_ref())
+            .await?;
+
+        let attendees = attendees.into_iter().map(Attendee::from).collect();
+
+        Ok(attendees)
     }
 }
