@@ -307,10 +307,8 @@ async fn get_all_subjects_for_one(
     Path(attendee_id): Path<Uuid>,
     claimes: Claims,
 ) -> Result<AppResponse<'static, Vec<Subject>>, ApiError> {
-    match claimes.user {
-        User::Admin(_) => {}
-        User::Instructor(id) if id == attendee_id => {}
-        _ => {
+    if let User::Attendee(id) = claimes.user {
+        if id != attendee_id {
             return Err(AuthError::UnauthorizedAccess.into());
         }
     };
