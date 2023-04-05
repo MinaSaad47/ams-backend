@@ -21,7 +21,7 @@ tower-http = { version = "0.3.5", features = [
     "compression-gzip",
 ] }
 tower = "0.4.13"
-tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
+tracing-subscriber = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 dotenvy = { workspace = true }

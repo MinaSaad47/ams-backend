@@ -11,14 +11,16 @@ use axum::Router;
 use dotenvy::dotenv;
 use dotenvy_macro::dotenv;
 use openapi_doc::ApiDoc;
-use sea_orm::Database;
+use routes::subjects::SubjectsState;
+use sea_orm::{ConnectOptions, Database};
 use tower::ServiceBuilder;
 use tower_http::{
     compression::CompressionLayer,
     normalize_path::NormalizePathLayer,
     trace::{DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
-use tracing::Level;
+use tracing::{log, metadata};
+use tracing_subscriber::{filter, prelude::*};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -40,19 +42,17 @@ pub type DynSubjectsRepo = Arc<dyn SubjectsRepoTrait + Send + Sync>;
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .with_test_writer()
-        .pretty()
-        .init();
-
+    // load envirnment variables from .env
     dotenv().ok();
 
-    let db = Arc::new(
-        Database::connect(dotenv!("DATABASE_URL"))
-            .await
-            .expect("posgresql connection"),
-    );
+    // enable tracing
+    setup_tracing(metadata::LevelFilter::DEBUG);
+
+    let db = {
+        let mut opt = ConnectOptions::new(dotenv!("DATABASE_URL").to_owned());
+        opt.sqlx_logging_level(log::LevelFilter::Debug);
+        Arc::new(Database::connect(opt).await.expect("posgresql connection"))
+    };
 
     let admins_repo = Arc::new(AdminsRepoPg(db.clone()));
     let instructors_repo = Arc::new(InstructorsRepo(db.clone()));
@@ -82,15 +82,18 @@ async fn main() {
                     subjects_repo: subjects_repo.clone(),
                     attendances_repo: attendances_repo.clone(),
                 }))
-                .merge(subjects::routes(subjects_repo.clone())),
+                .merge(subjects::routes(SubjectsState {
+                    subjects_repo: subjects_repo.clone(),
+                    attendees_repo: attendees_repo.clone(),
+                })),
         )
         .layer(
             ServiceBuilder::new()
                 .layer(
                     TraceLayer::new_for_http()
-                        .on_request(DefaultOnRequest::new().level(Level::INFO))
-                        .on_response(DefaultOnResponse::new().level(Level::INFO))
-                        .on_failure(DefaultOnFailure::new().level(Level::INFO)),
+                        .on_request(DefaultOnRequest::new().level(tracing::Level::INFO))
+                        .on_response(DefaultOnResponse::new().level(tracing::Level::INFO))
+                        .on_failure(DefaultOnFailure::new().level(tracing::Level::INFO)),
                 )
                 .layer(NormalizePathLayer::trim_trailing_slash())
                 .layer(CompressionLayer::new()),
@@ -101,4 +104,33 @@ async fn main() {
         .serve(app.into_make_service())
         .await
         .expect("axum server");
+}
+
+fn setup_tracing(level: metadata::LevelFilter) {
+    let layer1 = tracing_subscriber::fmt::layer()
+        .pretty()
+        .with_test_writer()
+        .with_filter(filter::filter_fn(|meta| {
+            meta.target().contains("api") || meta.target().contains("logic")
+        }))
+        .with_filter(level);
+
+    let layer2 = tracing_subscriber::fmt::layer()
+        .pretty()
+        .with_test_writer()
+        .with_line_number(false)
+        .with_file(false)
+        .with_thread_names(false)
+        .with_target(false)
+        .with_filter(filter::filter_fn(|meta| {
+            meta.target().contains("sea_orm")
+                || meta.target().contains("sqlx")
+                || meta.target().contains("tower_http")
+        }))
+        .with_filter(level);
+
+    tracing_subscriber::registry()
+        .with(layer1)
+        .with(layer2)
+        .init();
 }

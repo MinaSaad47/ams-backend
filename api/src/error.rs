@@ -20,6 +20,7 @@ pub enum ApiError {
 }
 
 impl IntoResponse for ApiError {
+    #[tracing::instrument(ret(Debug), level = "error")]
     fn into_response(self) -> axum::response::Response {
         let (status, response) = match self {
             ApiError::RepoError(error) => match error {
