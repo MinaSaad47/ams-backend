@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{FromRef, Path, State},
     routing::get,
     Json, Router,
 };
@@ -11,17 +11,24 @@ use crate::{
     auth::{AuthError, Claims, User},
     error::ApiError,
     response::{AppResponse, AppResponseDataExt, AppResponseMsgExt},
-    DynSubjectsRepo,
+    DynAttendeesRepo, DynSubjectsRepo,
 };
 
-pub fn routes(subjects_repo: DynSubjectsRepo) -> Router {
+#[derive(FromRef, Clone)]
+pub struct SubjectsState {
+    pub subjects_repo: DynSubjectsRepo,
+    pub attendees_repo: DynAttendeesRepo,
+}
+
+pub fn routes(subjects_state: SubjectsState) -> Router {
     Router::new()
         .route("/subjects", get(get_all).post(create_one))
         .route(
             "/subjects/:id",
             get(get_one).patch(update_one).delete(delete_one),
         )
-        .with_state(subjects_repo)
+        .route("/subjects/:id/attendees", get(get_all_attendees))
+        .with_state(subjects_state)
 }
 
 #[utoipa::path(
@@ -133,6 +140,30 @@ async fn delete_one(
 
     repo.delete_by_id(subject_id).await?;
     let response = "deleted one subject successfully".response();
+
+    Ok(response)
+}
+
+#[utoipa::path(
+    get,
+    path = "/subjects/{subject_id}/attendees",
+    responses(
+        (status = OK, body = AttendeesListResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn get_all_attendees(
+    State(repo): State<DynSubjectsRepo>,
+    Path(subject_id): Path<Uuid>,
+    claims: Claims,
+) -> Result<AppResponse<'static, Vec<Attendee>>, ApiError> {
+    if let User::Attendee(_) = claims.user {
+        return Err(AuthError::UnauthorizedAccess.into());
+    };
+
+    let subjects = repo.get_all_attendees(subject_id).await?;
+
+    let response = subjects.ok_response("retreived all attendees successfully");
 
     Ok(response)
 }
