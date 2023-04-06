@@ -20,6 +20,7 @@ pub struct Subject {
         serialize_with = "cron_serialize",
         deserialize_with = "cron_deserialize"
     )]
+    #[schema(example = "* * * * * *", value_type = String)]
     pub cron_expr: Schedule,
     pub create_at: DateTime<FixedOffset>,
     pub updated_at: DateTime<FixedOffset>,
@@ -55,11 +56,11 @@ impl From<(subjects::Model, Option<Instructor>)> for Subject {
 pub struct CreateSubject {
     #[schema(example = "intro to computer science")]
     pub name: String,
-    #[schema(example = "* * * * * *", value_type = String)]
     #[serde(
         serialize_with = "cron_serialize",
         deserialize_with = "cron_deserialize"
     )]
+    #[schema(example = "* * * * * *", value_type = String)]
     pub cron_expr: Schedule,
 }
 
@@ -68,11 +69,11 @@ pub struct CreateSubject {
 pub struct UpdateSubject {
     #[schema(example = "updated intro to computer science")]
     pub name: Option<String>,
-    #[schema(example = "* * * * * *", value_type = String)]
     #[serde(
         serialize_with = "opt_cron_serialize",
         deserialize_with = "opt_cron_deserialize"
     )]
+    #[schema(example = "* * * * * *", value_type = Option<String>)]
     pub cron_expr: Option<Schedule>,
     #[serde(skip)]
     pub instructor_id: Option<Option<Uuid>>,

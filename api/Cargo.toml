@@ -36,6 +36,7 @@ nn-model = { path = "../nn-model" }
 serde_json = { workspace = true }
 utoipa = { workspace = true, features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "3.0.2", features = ["axum"] }
+cron = { workspace = true }
 common = { path = "../common" }
 
 [dev-dependencies]
