@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use axum::{http::StatusCode, response::IntoResponse, Json};
 use nn_model::EmbeddingError;
 use sea_orm::sea_query::tests_cfg::json;
@@ -10,12 +12,18 @@ use crate::auth::AuthError;
 
 #[allow(dead_code)]
 #[derive(Error, Debug)]
-#[error("api error")]
 pub enum ApiError {
+    #[error("database error happened: {0:#?}")]
     RepoError(#[from] RepoError),
+    #[error("{0:#?}")]
     AuthError(#[from] AuthError),
+    #[error("embedding error happened: {0:#?}")]
     EmbeddingError(#[from] EmbeddingError),
+    #[error("io error happened: {0:#?}")]
     IOError(#[from] io::Error),
+    #[error("setup error happened: {0:#?}")]
+    SetupError(Cow<'static, str>),
+    #[error("Unknown error happened")]
     Unknown,
 }
 

@@ -10,17 +10,15 @@ use std::{net::SocketAddr, sync::Arc};
 use axum::Router;
 use dotenvy::dotenv;
 use dotenvy_macro::dotenv;
+use error::ApiError;
 use openapi_doc::ApiDoc;
-use routes::subjects::SubjectsState;
-use sea_orm::{ConnectOptions, Database};
+use routes::{attendances::AttandancesState, subjects::SubjectsState};
 use tower::ServiceBuilder;
 use tower_http::{
     compression::CompressionLayer,
     normalize_path::NormalizePathLayer,
     trace::{DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
-use tracing::{log, metadata};
-use tracing_subscriber::{filter, prelude::*};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -41,17 +39,18 @@ pub type DynAttendancesRepo = Arc<dyn AttendancesRepoTrait + Send + Sync>;
 pub type DynSubjectsRepo = Arc<dyn SubjectsRepoTrait + Send + Sync>;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // load envirnment variables from .env
     dotenv().ok();
 
     // enable tracing
     setup_tracing(metadata::LevelFilter::DEBUG);
 
+    // connect to the database
     let db = {
-        let mut opt = ConnectOptions::new(dotenv!("DATABASE_URL").to_owned());
-        opt.sqlx_logging_level(log::LevelFilter::Debug);
-        Arc::new(Database::connect(opt).await.expect("posgresql connection"))
+        let db = connect_to_database().await?;
+        tracing::info!("connected the database successfully");
+        Arc::new(db)
     };
 
     let admins_repo = Arc::new(AdminsRepoPg(db.clone()));
@@ -73,7 +72,7 @@ async fn main() {
                     subjects_repo: subjects_repo.clone(),
                     attendances_repo: attendances_repo.clone(),
                 }))
-                .merge(attendances::routes(attendances::AttandancesState {
+                .merge(attendances::routes(AttandancesState {
                     attendances_repo: attendances_repo.clone(),
                     subjects_repo: subjects_repo.clone(),
                 }))
@@ -102,10 +101,15 @@ async fn main() {
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
-        .await
-        .expect("axum server");
+        .await?;
+
+    Ok(())
 }
 
+use tracing::{log, metadata};
+use tracing_subscriber::{filter, prelude::*};
+
+/// setup tracing for monitoring events.
 fn setup_tracing(level: metadata::LevelFilter) {
     let layer1 = tracing_subscriber::fmt::layer()
         .pretty()
@@ -133,4 +137,24 @@ fn setup_tracing(level: metadata::LevelFilter) {
         .with(layer1)
         .with(layer2)
         .init();
+}
+
+use sea_orm::{ConnectOptions, Database, DatabaseConnection};
+
+/// connects to postgres database.
+///
+/// # Errors
+///
+/// This function will return an error if the connection can't be established.
+#[tracing::instrument(err)]
+async fn connect_to_database() -> Result<DatabaseConnection, ApiError> {
+    let mut opt = ConnectOptions::new(dotenv!("DATABASE_URL").to_owned());
+    opt.sqlx_logging_level(log::LevelFilter::Debug);
+
+    tracing::info!("establishing database connection");
+    tracing::debug!("connecting with options: \n{opt:#?}");
+
+    Database::connect(opt)
+        .await
+        .map_err(|error| ApiError::SetupError(error.to_string().into()))
 }
