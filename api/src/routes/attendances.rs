@@ -22,8 +22,8 @@ pub struct AttandancesState {
 
 pub fn routes(attendances_state: AttandancesState) -> Router {
     Router::new()
-        .route("/attendances/subjects/<id>", get(get_all_for_one_subject))
-        .route("/attendances/subjects/<id>/attendees/<id>", put(create_one))
+        .route("/attendances/subjects/:id", get(get_all_for_one_subject))
+        .route("/attendances/subjects/:id/attendees/:id", put(create_one))
         .with_state(attendances_state)
 }
 
@@ -35,6 +35,7 @@ pub fn routes(attendances_state: AttandancesState) -> Router {
     ),
     security(("api_jwt_token" = []))
 )]
+#[tracing::instrument(level = "trace", skip_all, ret)]
 pub async fn get_all_for_one_subject(
     State(attendances_repo): State<DynAttendancesRepo>,
     State(subjects_repo): State<DynSubjectsRepo>,
@@ -43,7 +44,14 @@ pub async fn get_all_for_one_subject(
 ) -> Result<AppResponse<'static, Vec<Attendance>>, ApiError> {
     match claimes.user {
         User::Admin(_) => {}
-        User::Instructor(id) if id == subjects_repo.get_by_id(subject_id).await?.id => {}
+        User::Instructor(id)
+            if Some(id) == {
+                subjects_repo
+                    .get_by_id(subject_id)
+                    .await?
+                    .instructor
+                    .map(|instructor| instructor.id)
+            } => {}
         _ => {
             return Err(AuthError::UnauthorizedAccess.into());
         }
@@ -62,7 +70,7 @@ pub async fn get_all_for_one_subject(
 }
 
 #[utoipa::path(
-    post,
+    put,
     path = "/attendances/subjects/{subject_id}/attendees/{attendee_id}",
     responses(
         (status = OK, body = AttendanceResponse)
