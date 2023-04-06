@@ -1,4 +1,7 @@
-# SAS Backend
+# AMS Backend
+
+[![Build (Tested)](https://github.com/MinaSaad47/ams-backend/actions/workflows/ci-build-tested.yml/badge.svg)](https://github.com/MinaSaad47/ams-backend/actions/workflows/ci-build-tested.yml)
+[![Build (Untested)](https://github.com/MinaSaad47/ams-backend/actions/workflows/ci-build-untested.yml/badge.svg)](https://github.com/MinaSaad47/ams-backend/actions/workflows/ci-build-untested.yml)
 
 ## endpoints
 
