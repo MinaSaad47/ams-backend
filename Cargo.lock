@@ -67,6 +67,7 @@ dependencies = [
  "axum",
  "chrono",
  "common",
+ "cron",
  "dotenvy",
  "dotenvy_macro",
  "hyper",
