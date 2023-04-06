@@ -1,3 +1,5 @@
+use std::fmt;
+
 use axum::{
     async_trait,
     extract::{FromRequestParts, TypedHeader},
@@ -34,6 +36,12 @@ pub struct Claims {
     pub exp: usize,
 }
 
+impl fmt::Debug for Claims {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "user: {:?}, expire period: {}", self.user, self.exp)
+    }
+}
+
 #[async_trait]
 impl<S> FromRequestParts<S> for Claims
 where
@@ -41,6 +49,7 @@ where
 {
     type Rejection = ApiError;
 
+    #[tracing::instrument(level = "debug", ret, err, skip_all)]
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         let TypedHeader(Authorization(bearer)) = parts
             .extract::<TypedHeader<Authorization<Bearer>>>()
