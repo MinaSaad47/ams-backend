@@ -1,9 +1,32 @@
 use sea_orm::{DbErr, RuntimeErr};
+use serde::Serialize;
 use sqlx::{postgres::PgDatabaseError, Error};
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Serialize)]
 pub enum RepoError {
+    #[error("subject `{id}` not found")]
+    SubjectNotFound { id: String },
+    #[error("attendee `{id}` not found")]
+    AttendeeNotFound { id: String },
+    #[error("instructor `{id}` not found")]
+    InstructorNotFound { id: String },
+    #[error("attendance `{id}` not found")]
+    AttendanceNotFound { id: String },
+    #[error("admin `{id}` not found")]
+    AdminNotFound { id: String },
+
+    #[error("subject already exists")]
+    DuplicateSubject,
+    #[error("attendee already exists")]
+    DuplicateAttendee,
+    #[error("instructor already exists")]
+    DuplicateInstructor,
+    #[error("attendance already exists")]
+    DuplicateAttendance,
+    #[error("admin already exists")]
+    DuplicateAdmin,
+
     #[error("duplicate in {0} `{1}`")]
     Duplicate(String, String),
     #[error("no record found in {0}")]
@@ -36,5 +59,29 @@ impl From<DbErr> for RepoError {
             _ => {}
         };
         return Self::Unknown;
+    }
+}
+
+pub(crate) trait MapDuplicateExt {
+    type Output;
+    fn map_duplicate(self, duplicate_error: RepoError) -> Result<Self::Output, RepoError>
+    where
+        Self: Sized;
+}
+
+impl<S> MapDuplicateExt for Result<S, DbErr> {
+    type Output = S;
+    fn map_duplicate(self, duplicate_error: RepoError) -> Result<Self::Output, RepoError>
+    where
+        Self: Sized,
+    {
+        self.map_err(|error| {
+            let error = error.into();
+            if let RepoError::Duplicate(_, _) = error {
+                duplicate_error
+            } else {
+                error
+            }
+        })
     }
 }

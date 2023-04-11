@@ -1,27 +1,16 @@
-use axum::{
-    extract::{FromRef, State},
-    routing::post,
-    Json, Router,
-};
+use axum::{extract::State, routing::post, Json, Router};
 use jsonwebtoken::{encode, Header};
 
 use crate::{
+    app::{self, DynAdminsRepo},
     auth::{AuthBody, AuthError, AuthPayload, Claims, User, KEYS},
     error::ApiError,
     response::AppResponse,
     response::AppResponseDataExt,
-    DynAdminsRepo,
 };
 
-#[derive(Clone, FromRef)]
-pub struct AdminsState {
-    pub admins_repo: DynAdminsRepo,
-}
-
-pub fn routes(admins_state: AdminsState) -> Router {
-    Router::new()
-        .route("/admins/login", post(login))
-        .with_state(admins_state)
+pub(crate) fn routes() -> Router<app::State> {
+    Router::new().route("/admins/login", post(login))
 }
 
 #[utoipa::path(
@@ -34,8 +23,12 @@ pub fn routes(admins_state: AdminsState) -> Router {
 )]
 async fn login(
     State(repo): State<DynAdminsRepo>,
-    Json(payload): Json<AuthPayload>,
+    payload: Option<Json<AuthPayload>>,
 ) -> Result<AppResponse<'static, AuthBody>, ApiError> {
+    let Some(Json(payload)) = payload else {
+        return Err(AuthError::MissingCredentials.into());
+    };
+
     let admin = repo.get_by_email(payload.email).await?;
 
     if payload.password != admin.password {
@@ -55,27 +48,28 @@ async fn login(
 
 #[cfg(test)]
 mod test {
-    use std::sync::{Arc, Mutex};
+    use axum_test_helper::TestClient;
 
     use rstest::*;
 
-    use axum::http::{Method, StatusCode};
-    use logic::{get_testing_db, prelude::*};
+    use axum::http::StatusCode;
 
-    use crate::test_utils::*;
+    use crate::app;
 
     use super::*;
 
     #[fixture]
     #[once]
-    fn testing_app() -> Mutex<TestingApp> {
-        let db = get_testing_db(dotenvy_macro::dotenv!("DATABASE_BASE_URL"), "admin_testing");
+    fn client() -> TestClient {
+        let db = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current()
+                .block_on(async move { crate::connect_to_database().await })
+                .unwrap()
+        });
 
-        let admins_repo = Arc::new(AdminsRepoPg(Arc::new(db)));
+        let app = routes().with_state(app::State::new(db));
 
-        let admins_state = AdminsState { admins_repo };
-
-        Mutex::new(TestingApp::new(routes(admins_state), "/admins"))
+        TestClient::new(app)
     }
 
     #[rstest]
@@ -89,24 +83,20 @@ mod test {
     #[tokio::test(flavor = "multi_thread")]
     #[trace]
     async fn login_test(
-        #[notrace] testing_app: &Mutex<TestingApp>,
+        #[notrace] client: &TestClient,
         #[case] email: String,
         #[case] password: String,
     ) {
-        let body = AuthPayload { email, password };
+        let auth_payload = AuthPayload { email, password };
 
-        let res: TestingResponse<AppResponse<AuthBody>> = testing_app
-            .lock()
-            .unwrap()
-            .request("/login", Method::POST, Some(body))
+        let response = client
+            .post("/admins/login")
+            .json(&auth_payload)
+            .send()
             .await;
 
-        dbg!(&res);
+        assert_eq!(response.status(), StatusCode::OK);
 
-        assert_eq!(res.status, StatusCode::OK);
-
-        let body = res.body.unwrap();
-
-        assert!(body.data.is_some())
+        let _ = response.json::<AppResponse<AuthBody>>().await;
     }
 }

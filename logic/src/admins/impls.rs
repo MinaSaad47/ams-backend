@@ -12,16 +12,16 @@ use super::{models::*, AdminsRepoTrait};
 
 use crate::prelude::RepoError;
 
-pub struct AdminsRepoPg(pub Arc<DatabaseConnection>);
+pub struct AdminsRepo(pub Arc<DatabaseConnection>);
 
-impl AsRef<DatabaseConnection> for AdminsRepoPg {
+impl AsRef<DatabaseConnection> for AdminsRepo {
     fn as_ref(&self) -> &DatabaseConnection {
         &self.0
     }
 }
 
 #[async_trait]
-impl AdminsRepoTrait for AdminsRepoPg {
+impl AdminsRepoTrait for AdminsRepo {
     async fn create(&self, admin: CreateAdmin) -> Result<Admin, RepoError> {
         Ok(admins::ActiveModel {
             name: Set(admin.name),

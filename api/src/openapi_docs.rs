@@ -89,7 +89,7 @@ pub struct Image {
     ),
     modifiers(&SecurityAddon)
 )]
-pub struct ApiDoc;
+pub struct ApiDocs;
 
 struct SecurityAddon;
 

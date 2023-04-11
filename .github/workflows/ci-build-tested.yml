@@ -25,7 +25,7 @@ jobs:
           override: true
 
       - name: Setup the testing enviroment containers
-        run: docker-compose -f "ci-docker-compose.yaml" up -d
+        run: docker-compose -f "ci-container-compose.yaml" up -d
 
       - name: Set up cargo cache
         uses: actions/cache@v3
@@ -74,6 +74,6 @@ jobs:
         with:
           name: windows-binary
           path: target/${{ matrix.target }}/release/api*
-            
+
       - name: finilize testing enviroment
-        run: docker-compose -f "ci-docker-compose.yaml" down
+        run: docker-compose -f "ci-container-compose.yaml" down
