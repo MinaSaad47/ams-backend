@@ -37,9 +37,9 @@ serde_json = { workspace = true }
 utoipa = { workspace = true, features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "3.0.2", features = ["axum"] }
 cron = { workspace = true }
-common = { path = "../common" }
 
 [dev-dependencies]
 mime = "0.3.16"
 rstest = "0.16.0"
 hyper = { workspace = true }
+axum-test-helper = "0.2.0"

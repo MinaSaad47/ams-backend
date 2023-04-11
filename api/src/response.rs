@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 
 use axum::{http::StatusCode, response::IntoResponse, Json};
-use sea_orm::sea_query::tests_cfg::json;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -19,6 +18,7 @@ pub struct SubjectsList(#[schema(inline)] Vec<Subject>);
 pub struct AttendancesList(#[schema(inline)] Vec<Attendance>);
 
 #[derive(Debug, ToSchema, Serialize, Deserialize)]
+#[serde(tag = "status", rename = "success")]
 #[aliases(
     AuthResponse = AppResponse<'a, AuthBody>,
     AdminResponse = AppResponse<'a, Admin>,
@@ -32,8 +32,8 @@ pub struct AttendancesList(#[schema(inline)] Vec<Attendance>);
     AttendancesListResponse = AppResponse<'a, AttendancesList>
 )]
 pub struct AppResponse<'a, Data> {
-    #[schema(value_type = i16, example = 200)]
-    pub code: u16,
+    #[serde(skip)]
+    pub code: StatusCode,
     pub message: Cow<'a, str>,
     pub data: Option<Data>,
 }
@@ -100,13 +100,6 @@ where
     Data: Serialize,
 {
     fn into_response(self) -> axum::response::Response {
-        match self.data {
-            Some(data) => Json(
-                json!({"code": self.code, "status": true, "message": self.message, "data": data}),
-            )
-            .into_response(),
-            None => Json(json!({"code": self.code, "status": true, "message": self.message}))
-                .into_response(),
-        }
+        (self.code, Json(self)).into_response()
     }
 }

@@ -1,5 +1,5 @@
 use axum::{
-    extract::{FromRef, Path, State},
+    extract::{Path, State},
     routing::{get, put},
     Router,
 };
@@ -8,23 +8,16 @@ use uuid::Uuid;
 use logic::prelude::*;
 
 use crate::{
+    app::{self, DynAttendancesRepo, DynSubjectsRepo},
     auth::{AuthError, Claims, User},
     error::ApiError,
     response::{AppResponse, AppResponseDataExt},
-    DynAttendancesRepo, DynSubjectsRepo,
 };
 
-#[derive(Clone, FromRef)]
-pub struct AttandancesState {
-    pub attendances_repo: DynAttendancesRepo,
-    pub subjects_repo: DynSubjectsRepo,
-}
-
-pub fn routes(attendances_state: AttandancesState) -> Router {
+pub(crate) fn routes() -> Router<app::State> {
     Router::new()
         .route("/attendances/subjects/:id", get(get_all_for_one_subject))
         .route("/attendances/subjects/:id/attendees/:id", put(create_one))
-        .with_state(attendances_state)
 }
 
 #[utoipa::path(

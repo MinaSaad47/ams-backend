@@ -1,7 +1,7 @@
 use std::env;
 
 use axum::{
-    extract::{FromRef, Multipart, Path, State},
+    extract::{Multipart, Path, State},
     routing::{get, post},
     Json, Router,
 };
@@ -13,20 +13,13 @@ use logic::prelude::*;
 use nn_model::Embedding;
 
 use crate::{
+    app::{self, DynAttendancesRepo, DynAttendeesRepo, DynSubjectsRepo},
     auth::{AuthBody, AuthError, AuthPayload, Claims, User, KEYS},
     error::ApiError,
     response::{AppResponse, AppResponseDataExt, AppResponseMsgExt},
-    DynAttendancesRepo, DynAttendeesRepo, DynSubjectsRepo,
 };
 
-#[derive(Clone, FromRef)]
-pub struct AttendeesState {
-    pub attendees_repo: DynAttendeesRepo,
-    pub subjects_repo: DynSubjectsRepo,
-    pub attendances_repo: DynAttendancesRepo,
-}
-
-pub fn routes(attendees_state: AttendeesState) -> Router {
+pub(crate) fn routes() -> Router<app::State> {
     Router::new()
         .route("/attendees", get(get_all).post(create_one))
         .route("/attendees/image", post(get_all_with_image))
@@ -50,7 +43,6 @@ pub fn routes(attendees_state: AttendeesState) -> Router {
             "/attendees/login",
             post(login_with_creds).get(login_with_token),
         )
-        .with_state(attendees_state)
 }
 
 /*
@@ -98,11 +90,11 @@ async fn get_all_with_image(
     };
 
     let Some(mut multipart) = multipart else {
-        return Err(ApiError::Unknown);
+        return Err(ApiError::Internal);
     };
 
     let Some(field) = multipart.next_field().await.ok().flatten() else {
-        return Err(ApiError::Unknown);
+        return Err(ApiError::Internal);
     };
 
     let mut attendees = repo.get_all().await?;
@@ -111,12 +103,12 @@ async fn get_all_with_image(
 
     fs::write(
         &image_path,
-        field.bytes().await.map_err(|_| ApiError::Unknown)?,
+        field.bytes().await.map_err(|_| ApiError::Internal)?,
     )
     .await?;
 
     let embedding: Vec<f64> =
-        Embedding::from_image(image_path.to_str().ok_or(ApiError::Unknown)?).await?;
+        Embedding::from_image(image_path.to_str().ok_or(ApiError::Internal)?).await?;
 
     let mut attendees_embeddings: Vec<(Attendee, f64)> = attendees
         .into_iter()
@@ -274,8 +266,12 @@ async fn delete_one(
 )]
 async fn login_with_creds(
     State(repo): State<DynAttendeesRepo>,
-    Json(payload): Json<AuthPayload>,
+    payload: Option<Json<AuthPayload>>,
 ) -> Result<AppResponse<'static, AuthBody>, ApiError> {
+    let Some(Json(payload)) = payload else {
+        return Err(AuthError::MissingCredentials.into());
+    };
+
     let attendee = repo.get_by_email(payload.email).await?;
 
     if payload.password != attendee.password {
@@ -408,6 +404,7 @@ async fn delete_one_subject_from_one(
     Ok(response)
 }
 
+// TODO: unauthorize other attendees
 async fn get_all_attendances_with_one_attendee_and_one_subject(
     State(repo): State<DynAttendancesRepo>,
     Path((attendee_id, subject_id)): Path<(Uuid, Uuid)>,
@@ -445,18 +442,18 @@ async fn upload_image(
     };
 
     let Ok(Some(field)) = multipart.next_field().await else {
-        return Err(ApiError::Unknown);
+        return Err(ApiError::Internal);
     };
 
     let image_path = env::temp_dir().join("image.png");
 
     fs::write(
         &image_path,
-        field.bytes().await.map_err(|_| ApiError::Unknown)?,
+        field.bytes().await.map_err(|_| ApiError::Internal)?,
     )
     .await?;
 
-    let embedding = Vec::from_image(image_path.to_str().ok_or(ApiError::Unknown)?).await?;
+    let embedding = Vec::from_image(image_path.to_str().ok_or(ApiError::Internal)?).await?;
 
     repo.update(
         attendee_id,
@@ -470,4 +467,83 @@ async fn upload_image(
     let response = "added an image to an attendee successfully".response();
 
     Ok(response)
+}
+
+#[cfg(test)]
+mod tests {
+    use axum_test_helper::TestClient;
+    use hyper::StatusCode;
+    use rstest::{fixture, rstest};
+
+    use super::*;
+
+    #[fixture]
+    fn client() -> TestClient {
+        let db = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current()
+                .block_on(async move { crate::connect_to_database().await })
+                .unwrap()
+        });
+
+        let state = app::State::new(db);
+
+        let app = routes().with_state(state);
+
+        TestClient::new(app)
+    }
+
+    #[rstest]
+    #[case::valid_cred(AuthPayload::new("MinaAttedee@outlook.com", "12345678"))]
+    #[should_panic]
+    #[case::invalid_cred_password(AuthPayload::new("mina@saad.com", "saad"))]
+    #[should_panic]
+    #[case::invalid_cred_email(AuthPayload::new("mina", "474747"))]
+    #[should_panic]
+    #[case::invalid_cred_all(AuthPayload::new("mina", "saad"))]
+    #[trace]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn login_test(#[notrace] client: TestClient, #[case] auth_payload: AuthPayload) {
+        let response = client
+            .post("/attendees/login")
+            .json(&auth_payload)
+            .send()
+            .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let _ = response.json::<AppResponse<AuthBody>>().await;
+    }
+
+    #[rstest]
+    #[should_panic]
+    #[case::invalid_cred(AuthPayload::new("mina", "saad"))]
+    #[case::valid_cred(AuthPayload::new("MinaAttedee@outlook.com", "12345678"))]
+    #[trace]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn get_all_for_self(#[notrace] client: TestClient, #[case] auth_payload: AuthPayload) {
+        let response = client
+            .post("/attendees/login")
+            .json(&auth_payload)
+            .send()
+            .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let AppResponse {
+            data: Some(AuthBody { token }),
+            ..
+        } = response.json::<AppResponse<'static, AuthBody>>().await else {
+            panic!();
+        };
+
+        let response = client
+            .get("/attendees/")
+            .header("Authorization", format!("Barear {token}"))
+            .send()
+            .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let _: AppResponse<'static, Vec<Attendee>> = response.json().await;
+    }
 }

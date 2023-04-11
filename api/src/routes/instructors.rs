@@ -1,5 +1,5 @@
 use axum::{
-    extract::{FromRef, Path, State},
+    extract::{Path, State},
     routing::{get, post},
     Json, Router,
 };
@@ -9,20 +9,13 @@ use uuid::Uuid;
 use logic::prelude::*;
 
 use crate::{
+    app::{self, DynInstructorsRepo, DynSubjectsRepo},
     auth::{AuthBody, AuthError, AuthPayload, Claims, User, KEYS},
     error::ApiError,
     response::{AppResponse, AppResponseDataExt, AppResponseMsgExt},
-    DynAttendancesRepo, DynInstructorsRepo, DynSubjectsRepo,
 };
 
-#[derive(FromRef, Clone)]
-pub struct InstructorsState {
-    pub instructors_repo: DynInstructorsRepo,
-    pub subjects_repo: DynSubjectsRepo,
-    pub attendances_repo: DynAttendancesRepo,
-}
-
-pub fn routes(instructors_state: InstructorsState) -> Router {
+pub(crate) fn routes() -> Router<app::State> {
     Router::new()
         .route("/instructors", get(get_all).post(create_one))
         .route(
@@ -40,7 +33,6 @@ pub fn routes(instructors_state: InstructorsState) -> Router {
             "/instructors/login",
             post(login_with_creds).get(login_with_token),
         )
-        .with_state(instructors_state)
 }
 
 /*
@@ -181,8 +173,12 @@ async fn delete_one(
 )]
 async fn login_with_creds(
     State(repo): State<DynInstructorsRepo>,
-    Json(payload): Json<AuthPayload>,
+    payload: Option<Json<AuthPayload>>,
 ) -> Result<AppResponse<'static, AuthBody>, ApiError> {
+    let Some(Json(payload)) = payload else {
+        return Err(AuthError::MissingCredentials.into());
+    };
+
     let instructor = repo.get_by_email(payload.email).await?;
 
     if payload.password != instructor.password {

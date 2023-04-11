@@ -28,7 +28,8 @@ impl AttendancesRepoTrait for AttendancesRepo {
             ..Default::default()
         }
         .insert(self.as_ref())
-        .await?;
+        .await
+        .map_duplicate(RepoError::DuplicateAttendance)?;
 
         Ok(self.get_by_id(attendance.id).await?)
     }
