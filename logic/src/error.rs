@@ -2,6 +2,7 @@ use sea_orm::{DbErr, RuntimeErr};
 use serde::Serialize;
 use sqlx::{postgres::PgDatabaseError, Error};
 use thiserror::Error;
+use uuid::Uuid;
 
 #[derive(Error, Debug, Serialize)]
 pub enum RepoError {
@@ -23,7 +24,7 @@ pub enum RepoError {
     #[error("instructor already exists")]
     DuplicateInstructor,
     #[error("attendance already exists")]
-    DuplicateAttendance,
+    DuplicateAttendance { attendee_id: Uuid, subject_id: Uuid },
     #[error("admin already exists")]
     DuplicateAdmin,
 
