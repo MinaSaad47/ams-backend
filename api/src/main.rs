@@ -8,13 +8,18 @@ mod setup;
 
 use std::net::SocketAddr;
 
-use axum::Router;
+use axum::{
+    http::StatusCode,
+    routing::{get, get_service},
+    Router,
+};
 use dotenvy::dotenv;
 use openapi_docs::ApiDocs;
 use tower::ServiceBuilder;
 use tower_http::{
     compression::CompressionLayer,
     normalize_path::NormalizePathLayer,
+    services::ServeDir,
     trace::{DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
 use utoipa::OpenApi;
@@ -37,6 +42,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // construct app state
     let state = app::State::new(db);
 
+    let assets =
+        get_service(ServeDir::new("assets")).handle_error(|error: std::io::Error| async move {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Unhandled internal error: {}", error),
+            )
+        });
+
     let app = Router::new()
         .merge(SwaggerUi::new("/swagger-ui").url("/api-doc/openapi.json", ApiDocs::openapi()))
         .nest(
@@ -49,6 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .merge(subjects::routes())
                 .with_state(state),
         )
+        .nest_service("assets", assets)
         .layer(
             ServiceBuilder::new()
                 .layer(
