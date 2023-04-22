@@ -32,11 +32,17 @@ impl From<(attendances::Model, Attendee, Subject)> for Attendance {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateAttendance {
     pub attendee_id: Uuid,
     pub subject_id: Uuid,
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateAttendances {
+    pub attendee_ids: Vec<Uuid>,
 }
 
 #[derive(Default)]

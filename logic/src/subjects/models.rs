@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use chrono::{DateTime, FixedOffset};
 use cron::Schedule;
+use itertools::Itertools;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -44,7 +45,8 @@ impl From<(subjects::Model, Option<Instructor>)> for Subject {
             id,
             name,
             instructor,
-            cron_expr: Schedule::from_str(&cron_expr).expect("valid expression from the database"),
+            cron_expr: Schedule::from_str(&format!("* {cron_expr} *"))
+                .expect("valid expression from the database"),
             create_at,
             updated_at,
         }
@@ -91,7 +93,11 @@ fn cron_serialize<S>(cron: &Schedule, s: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
-    s.serialize_str(&cron.to_string())
+    let expr = cron.to_string().split(' ').skip(1).take(5).join(" ");
+
+    tracing::info!(expr);
+
+    s.serialize_str(&expr)
 }
 
 fn opt_cron_serialize<S>(cron: &Option<Schedule>, s: S) -> Result<S::Ok, S::Error>
@@ -99,7 +105,10 @@ where
     S: Serializer,
 {
     match cron {
-        Some(cron) => s.serialize_some(&cron.to_string()),
+        Some(cron) => {
+            let expr = cron.to_string().split(' ').skip(1).take(5).join(" ");
+            s.serialize_some(&expr)
+        }
         None => s.serialize_none(),
     }
 }
@@ -108,7 +117,7 @@ fn cron_deserialize<'de, D>(deserializer: D) -> Result<cron::Schedule, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let buf = String::deserialize(deserializer)?;
+    let buf = format!("* {} *", String::deserialize(deserializer)?);
 
     cron::Schedule::from_str(&buf).map_err(serde::de::Error::custom)
 }
@@ -120,7 +129,10 @@ where
     let buf: Option<String> = Deserialize::deserialize(deserializer)?;
 
     let res = match buf {
-        Some(buf) => Some(Schedule::from_str(&buf).map_err(serde::de::Error::custom)?),
+        Some(buf) => {
+            let buf = format!("* {} *", buf);
+            Some(Schedule::from_str(&buf).map_err(serde::de::Error::custom)?)
+        }
         None => None,
     };
 

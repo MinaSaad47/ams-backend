@@ -85,7 +85,7 @@ async fn get_all_with_image(
     claimes: Claims,
     multipart: Option<Multipart>,
 ) -> Result<AppResponse<'static, Vec<Attendee>>, ApiError> {
-    let User::Admin(_) = claimes.user else {
+    if let User::Attendee(_) = claimes.user {
         return Err(AuthError::UnauthorizedAccess.into());
     };
 

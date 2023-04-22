@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
+use chrono::{Datelike, Utc};
 use sea_orm::{
     prelude::{async_trait::async_trait, *},
-    QueryTrait, Set,
+    QueryOrder, QueryTrait, Set, TransactionTrait,
 };
 
 use super::*;
@@ -21,7 +22,49 @@ impl AsRef<DatabaseConnection> for AttendancesRepo {
 
 #[async_trait]
 impl AttendancesRepoTrait for AttendancesRepo {
-    async fn create(&self, attendance: CreateAttendance) -> Result<Attendance, RepoError> {
+    async fn create_many(
+        &self,
+        subject_id: Uuid,
+        attendee_ids: Vec<Uuid>,
+    ) -> Result<Vec<Attendance>, RepoError> {
+        let txn = self.as_ref().begin().await?;
+
+        let mut created = Vec::with_capacity(attendee_ids.len());
+
+        for attendee_id in attendee_ids {
+            let attendance = self
+                .create_one(CreateAttendance {
+                    attendee_id,
+                    subject_id,
+                })
+                .await?;
+            created.push(attendance)
+        }
+
+        txn.commit().await?;
+
+        Ok(created)
+    }
+
+    async fn create_one(&self, attendance: CreateAttendance) -> Result<Attendance, RepoError> {
+        if let Some(last_attendance) = attendances::Entity::find()
+            .order_by_desc(attendances::Column::CreateAt)
+            .one(self.as_ref())
+            .await?
+        {
+            if last_attendance.attendee_id == attendance.attendee_id {
+                let now = Utc::now();
+                let last = last_attendance.create_at.with_timezone(&now.timezone());
+
+                if now.day() == last.day() {
+                    return Err(RepoError::DuplicateAttendance {
+                        attendee_id: attendance.attendee_id,
+                        subject_id: attendance.subject_id,
+                    });
+                }
+            }
+        };
+
         let attendance: attendances::Model = attendances::ActiveModel {
             attendee_id: Set(attendance.attendee_id),
             subject_id: Set(attendance.subject_id),
@@ -29,7 +72,10 @@ impl AttendancesRepoTrait for AttendancesRepo {
         }
         .insert(self.as_ref())
         .await
-        .map_duplicate(RepoError::DuplicateAttendance)?;
+        .map_duplicate(RepoError::DuplicateAttendance {
+            attendee_id: attendance.attendee_id,
+            subject_id: attendance.subject_id,
+        })?;
 
         Ok(self.get_by_id(attendance.id).await?)
     }
