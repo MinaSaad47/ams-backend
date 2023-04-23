@@ -1,5 +1,5 @@
-pub mod impls;
-pub mod models;
+mod impls;
+mod models;
 
 use sea_orm::prelude::async_trait::async_trait;
 use uuid::Uuid;

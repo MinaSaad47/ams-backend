@@ -16,6 +16,7 @@ pub struct Attendee {
     pub password: String,
     #[serde(skip)]
     pub embedding: Option<Vec<f64>>,
+    pub image: Option<String>,
     pub create_at: DateTime<FixedOffset>,
     pub updated_at: DateTime<FixedOffset>,
 }
@@ -30,6 +31,7 @@ impl From<attendees::Model> for Attendee {
             password,
             create_at,
             updated_at,
+            image,
             embedding,
         }: attendees::Model,
     ) -> Self {
@@ -37,6 +39,7 @@ impl From<attendees::Model> for Attendee {
             id,
             name,
             number,
+            image,
             email,
             password,
             create_at,
@@ -71,4 +74,6 @@ pub struct UpdateAttendee {
     pub number: Option<i64>,
     #[serde(skip)]
     pub embedding: Option<Option<Vec<f64>>>,
+    #[serde(skip)]
+    pub image: Option<Vec<u8>>,
 }

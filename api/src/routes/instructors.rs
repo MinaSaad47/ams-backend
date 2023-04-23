@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Multipart, Path, State},
     routing::{get, post},
     Json, Router,
 };
@@ -23,6 +23,7 @@ pub(crate) fn routes() -> Router<app::State> {
             get(get_one).patch(update_one).delete(delete_one),
         )
         .route("/instructors/:id/subjects", get(get_all_subjects_for_one))
+        .route("/instructors/:id/image", post(upload_image))
         .route(
             "/instructors/:id/subjects/:id",
             get(get_one_subject_for_one)
@@ -359,6 +360,50 @@ async fn delete_one_subject_from_one(
         )
         .await?;
     let response = subject.ok_response("removed the instructor from the subject successfully");
+
+    Ok(response)
+}
+
+#[utoipa::path(
+    post,
+    path = "/instructors/{instructor_id}/image",
+    request_body(content = Image, content_type = "multipart/form-data"),
+    responses(
+        (status = OK, body = InstructorResponse)
+    ),
+    security(("api_jwt_token" = []))
+)]
+async fn upload_image(
+    State(repo): State<DynInstructorsRepo>,
+    Path(instructor_id): Path<Uuid>,
+    claimes: Claims,
+    mut multipart: Multipart,
+) -> Result<AppResponse<'static, Instructor>, ApiError> {
+    let User::Admin(_) = claimes.user else {
+        return Err(AuthError::UnauthorizedAccess.into());
+    };
+
+    let Ok(Some(field)) = multipart.next_field().await else {
+        return Err(ApiError::Internal);
+    };
+
+    let image = field
+        .bytes()
+        .await
+        .map_err(|_| ApiError::Internal)?
+        .to_vec();
+
+    let instructor = repo
+        .update(
+            instructor_id,
+            UpdateInstructor {
+                image: Some(image),
+                ..Default::default()
+            },
+        )
+        .await?;
+
+    let response = instructor.ok_response("added an image to an attendee successfully");
 
     Ok(response)
 }

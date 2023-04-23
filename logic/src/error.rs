@@ -59,7 +59,7 @@ impl From<DbErr> for RepoError {
             }
             _ => {}
         };
-        return Self::Unknown;
+        Self::Unknown
     }
 }
 

@@ -1,14 +1,46 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use sea_orm::Set;
+use tokio::fs;
 
 use super::*;
 
-pub struct InstructorsRepo(pub Arc<DatabaseConnection>);
+pub struct InstructorsRepo {
+    db: Arc<DatabaseConnection>,
+    assets: PathBuf,
+}
+
+impl InstructorsRepo {
+    pub fn new(db: Arc<DatabaseConnection>, assets: impl Into<PathBuf>) -> Self {
+        let assets: PathBuf = assets.into();
+        if assets.exists() == false {
+            std::fs::create_dir_all(&assets).unwrap();
+        }
+
+        Self {
+            db,
+            assets: assets.into(),
+        }
+    }
+
+    async fn save_image(&self, id: Uuid, image: Vec<u8>) -> PathBuf {
+        let instructor_dir = self.assets.join(id.to_string());
+
+        if instructor_dir.exists() == false {
+            fs::create_dir_all(&instructor_dir).await.unwrap();
+        }
+
+        let image_path = instructor_dir.join("image.png");
+
+        fs::write(&image_path, &image).await.unwrap();
+
+        image_path
+    }
+}
 
 impl AsRef<DatabaseConnection> for InstructorsRepo {
     fn as_ref(&self) -> &DatabaseConnection {
-        &self.0
+        &self.db
     }
 }
 
@@ -33,6 +65,7 @@ impl InstructorsRepoTrait for InstructorsRepo {
             name,
             email,
             password,
+            image,
             number,
         }: UpdateInstructor,
     ) -> Result<Instructor, RepoError> {
@@ -53,6 +86,11 @@ impl InstructorsRepoTrait for InstructorsRepo {
         }
         if let Some(number) = number {
             instructor.number = Set(number);
+        }
+
+        if let Some(image) = image {
+            let path = self.save_image(id, image).await;
+            instructor.image = Set(Some(path.to_string_lossy().into()))
         }
 
         let instructor: instructors::Model = instructor.update(self.as_ref()).await?;

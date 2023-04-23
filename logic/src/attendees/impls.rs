@@ -1,14 +1,46 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use sea_orm::{prelude::*, Set};
+use tokio::fs;
 
 use super::*;
 
-pub struct AttendeesRepo(pub Arc<DatabaseConnection>);
+pub struct AttendeesRepo {
+    db: Arc<DatabaseConnection>,
+    assets: PathBuf,
+}
 
 impl AsRef<DatabaseConnection> for AttendeesRepo {
     fn as_ref(&self) -> &DatabaseConnection {
-        &self.0
+        &self.db
+    }
+}
+
+impl AttendeesRepo {
+    pub fn new(db: Arc<DatabaseConnection>, assets: impl Into<PathBuf>) -> Self {
+        let assets: PathBuf = assets.into();
+        if assets.exists() == false {
+            std::fs::create_dir_all(&assets).unwrap();
+        }
+
+        Self {
+            db,
+            assets: assets.into(),
+        }
+    }
+
+    async fn save_image(&self, id: Uuid, image: Vec<u8>) -> PathBuf {
+        let attendee_dir = self.assets.join(id.to_string());
+
+        if attendee_dir.exists() == false {
+            fs::create_dir_all(&attendee_dir).await.unwrap();
+        }
+
+        let image_path = attendee_dir.join("image.png");
+
+        fs::write(&image_path, &image).await.unwrap();
+
+        image_path
     }
 }
 
@@ -30,6 +62,7 @@ impl AttendeesRepoTrait for AttendeesRepo {
         &self,
         id: Uuid,
         UpdateAttendee {
+            image,
             name,
             email,
             password,
@@ -57,6 +90,11 @@ impl AttendeesRepoTrait for AttendeesRepo {
         }
         if let Some(embedding) = embedding {
             attendee.embedding = Set(embedding);
+        }
+
+        if let Some(image) = image {
+            let path = self.save_image(id, image).await;
+            attendee.image = Set(Some(path.to_string_lossy().into()))
         }
 
         let attendee: attendees::Model = attendee.update(self.as_ref()).await?;

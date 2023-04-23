@@ -8,12 +8,9 @@ mod setup;
 
 use std::net::SocketAddr;
 
-use axum::{
-    http::StatusCode,
-    routing::{get, get_service},
-    Router,
-};
+use axum::{http::StatusCode, routing::get_service, Router};
 use dotenvy::dotenv;
+use dotenvy_macro::dotenv;
 use openapi_docs::ApiDocs;
 use tower::ServiceBuilder;
 use tower_http::{
@@ -40,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("connected the database successfully");
 
     // construct app state
-    let state = app::State::new(db);
+    let state = app::State::new(db, dotenv!("ASSETS"));
 
     let assets =
         get_service(ServeDir::new("assets")).handle_error(|error: std::io::Error| async move {
@@ -62,7 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .merge(subjects::routes())
                 .with_state(state),
         )
-        .nest_service("assets", assets)
+        .nest_service("/assets", assets)
         .layer(
             ServiceBuilder::new()
                 .layer(
