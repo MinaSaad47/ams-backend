@@ -1,3 +1,4 @@
 /target
 container-compose.yaml
 /nn-model/model
+/assets

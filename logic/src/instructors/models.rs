@@ -13,6 +13,7 @@ pub struct Instructor {
     pub email: String,
     #[serde(skip)]
     pub password: String,
+    pub image: Option<String>,
     pub create_at: DateTime<FixedOffset>,
     pub updated_at: DateTime<FixedOffset>,
 }
@@ -25,6 +26,7 @@ impl From<instructors::Model> for Instructor {
             name,
             email,
             password,
+            image,
             create_at,
             updated_at,
         }: instructors::Model,
@@ -33,6 +35,7 @@ impl From<instructors::Model> for Instructor {
             id,
             name,
             number,
+            image,
             email,
             password,
             create_at,
@@ -54,7 +57,7 @@ pub struct CreateInstructor {
     pub number: i64,
 }
 
-#[derive(Deserialize, Serialize, Debug, ToSchema)]
+#[derive(Deserialize, Serialize, Debug, ToSchema, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateInstructor {
     #[schema(example = "Emil Instructor")]
@@ -63,6 +66,8 @@ pub struct UpdateInstructor {
     pub email: Option<String>,
     #[schema(example = "12345678")]
     pub password: Option<String>,
+    #[serde(skip)]
+    pub image: Option<Vec<u8>>,
     #[schema(example = 3232323)]
     pub number: Option<i64>,
 }

@@ -14,6 +14,7 @@ pub struct Model {
     pub email: String,
     pub password: String,
     pub embedding: Option<Vec<f64>>,
+    pub image: Option<String>,
     pub create_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }

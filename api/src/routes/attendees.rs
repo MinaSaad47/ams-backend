@@ -436,7 +436,7 @@ async fn upload_image(
     Path(attendee_id): Path<Uuid>,
     claimes: Claims,
     mut multipart: Multipart,
-) -> Result<AppResponse<'static, ()>, ApiError> {
+) -> Result<AppResponse<'static, Attendee>, ApiError> {
     let User::Admin(_) = claimes.user else {
         return Err(AuthError::UnauthorizedAccess.into());
     };
@@ -447,24 +447,28 @@ async fn upload_image(
 
     let image_path = env::temp_dir().join("image.png");
 
-    fs::write(
-        &image_path,
-        field.bytes().await.map_err(|_| ApiError::Internal)?,
-    )
-    .await?;
+    let image = field
+        .bytes()
+        .await
+        .map_err(|_| ApiError::Internal)?
+        .to_vec();
+
+    fs::write(&image_path, image.clone()).await?;
 
     let embedding = Vec::from_image(image_path.to_str().ok_or(ApiError::Internal)?).await?;
 
-    repo.update(
-        attendee_id,
-        UpdateAttendee {
-            embedding: Some(Some(embedding)),
-            ..Default::default()
-        },
-    )
-    .await?;
+    let attendee = repo
+        .update(
+            attendee_id,
+            UpdateAttendee {
+                embedding: Some(Some(embedding)),
+                image: Some(image),
+                ..Default::default()
+            },
+        )
+        .await?;
 
-    let response = "added an image to an attendee successfully".response();
+    let response = attendee.ok_response("added an image to an attendee successfully");
 
     Ok(response)
 }

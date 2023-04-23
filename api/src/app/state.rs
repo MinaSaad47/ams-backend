@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use axum::extract::FromRef;
 use logic::subjects::{
@@ -24,13 +24,18 @@ pub(crate) struct State {
 }
 
 impl State {
-    pub(crate) fn new(db: DatabaseConnection) -> Self {
+    pub(crate) fn new(db: DatabaseConnection, assets: impl Into<PathBuf>) -> Self {
         let db = Arc::new(db);
-        let attendees_repo = Arc::new(AttendeesRepo(db.clone()));
-        let instructors_repo = Arc::new(InstructorsRepo(db.clone()));
+        let (instructor_path, attendee_path) = {
+            let assets: PathBuf = assets.into();
+
+            (assets.join("instructors"), assets.join("attendees"))
+        };
+        let attendees_repo = Arc::new(AttendeesRepo::new(db.clone(), attendee_path));
+        let instructors_repo = Arc::new(InstructorsRepo::new(db.clone(), instructor_path));
         let admins_repo = Arc::new(AdminsRepo(db.clone()));
         let subjects_repo = Arc::new(SubjectsRepository(db.clone()));
-        let attendances_repo = Arc::new(AttendancesRepo(db.clone()));
+        let attendances_repo = Arc::new(AttendancesRepo(db));
         Self {
             attendees_repo,
             instructors_repo,

@@ -31,6 +31,7 @@ pub struct Image {
         crate::routes::instructors::get_one_subject_for_one,
         crate::routes::instructors::put_one_subject_to_one,
         crate::routes::instructors::delete_one_subject_from_one,
+        crate::routes::instructors::upload_image,
 
         crate::routes::attendees::login_with_creds,
         crate::routes::attendees::login_with_token,

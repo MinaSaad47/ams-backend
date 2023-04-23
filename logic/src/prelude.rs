@@ -1,3 +1,2 @@
-pub use crate::{admins::*, attendances::*, attendees::*, error::*, instructors::*, subjects::*};
-
-
+pub use crate::subjects::*;
+pub use crate::{admins::*, attendances::*, attendees::*, error::*, instructors::*};

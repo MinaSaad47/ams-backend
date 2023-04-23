@@ -44,7 +44,7 @@ where
 {
     fn response(self) -> AppResponse<'a, ()> {
         AppResponse {
-            code: StatusCode::OK.into(),
+            code: StatusCode::OK,
             message: self.into(),
             data: None,
         }
@@ -60,7 +60,7 @@ where
 {
     fn from(value: T) -> Self {
         Self {
-            code: StatusCode::OK.into(),
+            code: StatusCode::OK,
             message: value.into(),
             data: None,
         }
@@ -74,14 +74,14 @@ where
 {
     fn create_response(self, message: Msg) -> AppResponse<'a, Self> {
         AppResponse {
-            code: StatusCode::CREATED.into(),
+            code: StatusCode::CREATED,
             message: message.into(),
             data: Some(self),
         }
     }
     fn ok_response(self, message: Msg) -> AppResponse<'a, Self> {
         AppResponse {
-            code: StatusCode::OK.into(),
+            code: StatusCode::OK,
             message: message.into(),
             data: Some(self),
         }
