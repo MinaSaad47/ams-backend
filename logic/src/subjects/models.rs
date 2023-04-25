@@ -21,7 +21,7 @@ pub struct Subject {
         serialize_with = "cron_serialize",
         deserialize_with = "cron_deserialize"
     )]
-    #[schema(example = "* * * * * *", value_type = String)]
+    #[schema(example = "* * * * *", value_type = String)]
     pub cron_expr: Schedule,
     pub create_at: DateTime<FixedOffset>,
     pub updated_at: DateTime<FixedOffset>,
@@ -45,8 +45,7 @@ impl From<(subjects::Model, Option<Instructor>)> for Subject {
             id,
             name,
             instructor,
-            cron_expr: Schedule::from_str(&format!("* {cron_expr} *"))
-                .expect("valid expression from the database"),
+            cron_expr: Schedule::from_str(&cron_expr).expect("valid expression from the database"),
             create_at,
             updated_at,
         }
@@ -62,7 +61,7 @@ pub struct CreateSubject {
         serialize_with = "cron_serialize",
         deserialize_with = "cron_deserialize"
     )]
-    #[schema(example = "* * * * * *", value_type = String)]
+    #[schema(example = "* * * * *", value_type = String)]
     pub cron_expr: Schedule,
 }
 
@@ -75,7 +74,7 @@ pub struct UpdateSubject {
         serialize_with = "opt_cron_serialize",
         deserialize_with = "opt_cron_deserialize"
     )]
-    #[schema(example = "* * * * * *", value_type = Option<String>)]
+    #[schema(example = "* * * * *", value_type = Option<String>)]
     pub cron_expr: Option<Schedule>,
     #[serde(skip)]
     pub instructor_id: Option<Option<Uuid>>,
@@ -117,7 +116,7 @@ fn cron_deserialize<'de, D>(deserializer: D) -> Result<cron::Schedule, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let buf = format!("* {} *", String::deserialize(deserializer)?);
+    let buf = format!("0 {} *", String::deserialize(deserializer)?);
 
     cron::Schedule::from_str(&buf).map_err(serde::de::Error::custom)
 }
@@ -130,7 +129,7 @@ where
 
     let res = match buf {
         Some(buf) => {
-            let buf = format!("* {} *", buf);
+            let buf = format!("0 {} *", buf);
             Some(Schedule::from_str(&buf).map_err(serde::de::Error::custom)?)
         }
         None => None,

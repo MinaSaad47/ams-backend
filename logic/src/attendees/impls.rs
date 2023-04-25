@@ -123,11 +123,7 @@ impl AttendeesRepoTrait for AttendeesRepo {
             .into_iter()
             .map(Attendee::from)
             .collect();
-        if collections.is_empty() {
-            Err(RepoError::NotFound("attendees".to_owned()))
-        } else {
-            Ok(collections)
-        }
+        Ok(collections)
     }
     async fn delete_by_id(&self, id: Uuid) -> Result<(), RepoError> {
         attendees::Entity::delete_by_id(id)

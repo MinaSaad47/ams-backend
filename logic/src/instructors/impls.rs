@@ -119,11 +119,7 @@ impl InstructorsRepoTrait for InstructorsRepo {
             .into_iter()
             .map(Instructor::from)
             .collect();
-        if collection.is_empty() {
-            Err(RepoError::NotFound("instructors".to_owned()))
-        } else {
-            Ok(collection)
-        }
+        Ok(collection)
     }
     async fn delete_by_id(&self, id: Uuid) -> Result<(), RepoError> {
         instructors::Entity::delete_by_id(id)
