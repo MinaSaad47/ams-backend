@@ -11,14 +11,24 @@ use crate::response::*;
 
 #[derive(ToSchema)]
 pub struct Image {
+    #[schema(value_type = Option<String>, format = Binary)]
+    pub image: Option<File>,
+    #[schema(value_type = Option<String>, format = Binary)]
+    pub any: Option<File>,
+}
+
+#[derive(ToSchema)]
+pub struct Classifier {
     #[schema(value_type = String, format = Binary)]
-    pub image: File,
+    pub any: File,
 }
 
 #[derive(OpenApi)]
 #[openapi(
     paths(
         crate::routes::admins::login,
+
+        crate::routes::config::upload_classifier,
 
         crate::routes::instructors::login_with_creds,
         crate::routes::instructors::login_with_token,
@@ -52,6 +62,7 @@ pub struct Image {
         crate::routes::subjects::create_one,
         crate::routes::subjects::update_one,
         crate::routes::subjects::delete_one,
+        crate::routes::subjects::get_all_attendees,
 
         crate::routes::attendances::get_all_for_one_subject,
         crate::routes::attendances::create_one,
@@ -86,6 +97,7 @@ pub struct Image {
             AttendanceResponse,
             AttendancesListResponse,
             Image,
+            Classifier,
         ),
     ),
     modifiers(&SecurityAddon)

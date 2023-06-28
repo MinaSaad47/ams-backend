@@ -89,7 +89,7 @@ impl InstructorsRepoTrait for InstructorsRepo {
         }
 
         if let Some(image) = image {
-            let path = self.save_image(id, image).await;
+            let path = self.save_image(id, image.into()).await;
             instructor.image = Set(Some(path.to_string_lossy().into()))
         }
 

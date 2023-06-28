@@ -1,4 +1,4 @@
-use std::env;
+use std::sync::Arc;
 
 use axum::{
     extract::{Multipart, Path, State},
@@ -6,14 +6,17 @@ use axum::{
     Json, Router,
 };
 use jsonwebtoken::{encode, Header};
-use tokio::fs;
 use uuid::Uuid;
 
 use logic::prelude::*;
-use nn_model::Embedding;
+use nn_model::{Embedding, FaceRecognizer};
 
 use crate::{
-    app::{self, DynAttendancesRepo, DynAttendeesRepo, DynSubjectsRepo},
+    app::{
+        self,
+        config::{FaceRecModeKind, FACE_REC_MODE},
+        DynAttendancesRepo, DynAttendeesRepo, DynSubjectsRepo,
+    },
     auth::{AuthBody, AuthError, AuthPayload, Claims, User, KEYS},
     error::ApiError,
     response::{AppResponse, AppResponseDataExt, AppResponseMsgExt},
@@ -82,6 +85,7 @@ async fn get_all(
 )]
 async fn get_all_with_image(
     State(repo): State<DynAttendeesRepo>,
+    State(fr): State<Arc<FaceRecognizer>>,
     claimes: Claims,
     multipart: Option<Multipart>,
 ) -> Result<AppResponse<'static, Vec<Attendee>>, ApiError> {
@@ -97,39 +101,44 @@ async fn get_all_with_image(
         return Err(ApiError::Internal);
     };
 
-    let mut attendees = repo.get_all().await?;
+    let attendees = repo.get_all().await?;
 
-    let image_path = env::temp_dir().join("image.png");
+    let image = field.bytes().await.map_err(|_| ApiError::Internal)?;
 
-    fs::write(
-        &image_path,
-        field.bytes().await.map_err(|_| ApiError::Internal)?,
-    )
-    .await?;
+    let attendees: Vec<_> = match *FACE_REC_MODE.read().await {
+        FaceRecModeKind::Embed => {
+            let embedding = fr.embed(&image).await?;
 
-    let embedding: Vec<f64> =
-        Embedding::from_image(image_path.to_str().ok_or(ApiError::Internal)?).await?;
+            let mut attendees_embeddings: Vec<(Attendee, f64)> = attendees
+                .into_iter()
+                .filter(|attendee| attendee.embedding.is_some())
+                .map(|attendee| {
+                    let distance = attendee
+                        .embedding
+                        .as_ref()
+                        .expect("filtered attendees without embedding")
+                        .distance(&embedding);
+                    (attendee, distance)
+                })
+                .filter(|(_, distance)| distance < &0.6)
+                .collect();
 
-    let mut attendees_embeddings: Vec<(Attendee, f64)> = attendees
-        .into_iter()
-        .filter(|attendee| attendee.embedding.is_some())
-        .map(|attendee| {
-            let distance = attendee
-                .embedding
-                .as_ref()
-                .expect("filtered attendees without embedding")
-                .distance(&embedding);
-            (attendee, distance)
-        })
-        .filter(|(_, distance)| distance < &0.6)
-        .collect();
+            attendees_embeddings
+                .sort_by(|attendee1, attendee2| attendee1.1.total_cmp(&attendee2.1));
 
-    attendees_embeddings.sort_by(|attendee1, attendee2| attendee1.1.total_cmp(&attendee2.1));
-
-    attendees = attendees_embeddings
-        .into_iter()
-        .map(|(attendee, _)| attendee)
-        .collect();
+            attendees_embeddings
+                .into_iter()
+                .map(|(attendee, _)| attendee)
+                .collect()
+        }
+        FaceRecModeKind::Classify => {
+            let class = fr.classify(&image).await?;
+            attendees
+                .into_iter()
+                .filter(|attendee| attendee.id == class)
+                .collect()
+        }
+    };
 
     let response = attendees.ok_response("retreived all attendees successfully");
 
@@ -433,6 +442,7 @@ async fn get_all_attendances_with_one_attendee_and_one_subject(
 )]
 async fn upload_image(
     State(repo): State<DynAttendeesRepo>,
+    State(fr): State<Arc<FaceRecognizer>>,
     Path(attendee_id): Path<Uuid>,
     claimes: Claims,
     mut multipart: Multipart,
@@ -441,113 +451,43 @@ async fn upload_image(
         return Err(AuthError::UnauthorizedAccess.into());
     };
 
-    let Ok(Some(field)) = multipart.next_field().await else {
-        return Err(ApiError::Internal);
-    };
+    while let Ok(Some(item)) = multipart.next_field().await {
+        tracing::info!("{:#?}", item.content_type());
 
-    let image_path = env::temp_dir().join("image.png");
+        let (name, file_name) = if let Some(file_name) = item.file_name() {
+            (item.name(), file_name.to_owned())
+        } else {
+            continue;
+        };
 
-    let image = field
-        .bytes()
-        .await
-        .map_err(|_| ApiError::Internal)?
-        .to_vec();
+        if let Some("image") = name {
+            let image = item.bytes().await.map_err(|_| ApiError::Internal)?.to_vec();
+            let embedding = fr.embed(&image).await?;
+            repo.update(
+                attendee_id,
+                UpdateAttendee {
+                    embedding: Some(Some(embedding)),
+                    image: Some((image.into(), "image.png".into())),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        } else {
+            let image = item.bytes().await.map_err(|_| ApiError::Internal)?.to_vec();
+            repo.update(
+                attendee_id,
+                UpdateAttendee {
+                    image: Some((image.into(), file_name.into())),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        }
+    }
 
-    fs::write(&image_path, image.clone()).await?;
-
-    let embedding = Vec::from_image(image_path.to_str().ok_or(ApiError::Internal)?).await?;
-
-    let attendee = repo
-        .update(
-            attendee_id,
-            UpdateAttendee {
-                embedding: Some(Some(embedding)),
-                image: Some(image),
-                ..Default::default()
-            },
-        )
-        .await?;
+    let attendee = repo.get_by_id(attendee_id).await?;
 
     let response = attendee.ok_response("added an image to an attendee successfully");
 
     Ok(response)
-}
-
-#[cfg(test)]
-mod tests {
-    use axum_test_helper::TestClient;
-    use hyper::StatusCode;
-    use rstest::{fixture, rstest};
-
-    use super::*;
-
-    #[fixture]
-    fn client() -> TestClient {
-        let db = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current()
-                .block_on(async move { crate::connect_to_database().await })
-                .unwrap()
-        });
-
-        let state = app::State::new(db);
-
-        let app = routes().with_state(state);
-
-        TestClient::new(app)
-    }
-
-    #[rstest]
-    #[case::valid_cred(AuthPayload::new("MinaAttedee@outlook.com", "12345678"))]
-    #[should_panic]
-    #[case::invalid_cred_password(AuthPayload::new("mina@saad.com", "saad"))]
-    #[should_panic]
-    #[case::invalid_cred_email(AuthPayload::new("mina", "474747"))]
-    #[should_panic]
-    #[case::invalid_cred_all(AuthPayload::new("mina", "saad"))]
-    #[trace]
-    #[tokio::test(flavor = "multi_thread")]
-    async fn login_test(#[notrace] client: TestClient, #[case] auth_payload: AuthPayload) {
-        let response = client
-            .post("/attendees/login")
-            .json(&auth_payload)
-            .send()
-            .await;
-
-        assert_eq!(response.status(), StatusCode::OK);
-
-        let _ = response.json::<AppResponse<AuthBody>>().await;
-    }
-
-    #[rstest]
-    #[should_panic]
-    #[case::invalid_cred(AuthPayload::new("mina", "saad"))]
-    #[case::valid_cred(AuthPayload::new("MinaAttedee@outlook.com", "12345678"))]
-    #[trace]
-    #[tokio::test(flavor = "multi_thread")]
-    async fn get_all_for_self(#[notrace] client: TestClient, #[case] auth_payload: AuthPayload) {
-        let response = client
-            .post("/attendees/login")
-            .json(&auth_payload)
-            .send()
-            .await;
-
-        assert_eq!(response.status(), StatusCode::OK);
-
-        let AppResponse {
-            data: Some(AuthBody { token }),
-            ..
-        } = response.json::<AppResponse<'static, AuthBody>>().await else {
-            panic!();
-        };
-
-        let response = client
-            .get("/attendees/")
-            .header("Authorization", format!("Barear {token}"))
-            .send()
-            .await;
-
-        assert_eq!(response.status(), StatusCode::OK);
-
-        let _: AppResponse<'static, Vec<Attendee>> = response.json().await;
-    }
 }

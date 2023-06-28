@@ -6,6 +6,7 @@ use logic::subjects::{
     AttendeesRepoTrait, InstructorsRepo, InstructorsRepoTrait, SubjectsRepoTrait,
     SubjectsRepository,
 };
+use nn_model::FaceRecognizer;
 use sea_orm::DatabaseConnection;
 
 pub(crate) type DynAdminsRepo = Arc<dyn AdminsRepoTrait + Send + Sync>;
@@ -21,6 +22,7 @@ pub(crate) struct State {
     admins_repo: DynAdminsRepo,
     subjects_repo: DynSubjectsRepo,
     attendances_repo: DynAttendancesRepo,
+    face_recognizer: Arc<FaceRecognizer>,
 }
 
 impl State {
@@ -36,12 +38,15 @@ impl State {
         let admins_repo = Arc::new(AdminsRepo(db.clone()));
         let subjects_repo = Arc::new(SubjectsRepository(db.clone()));
         let attendances_repo = Arc::new(AttendancesRepo(db));
+        let face_recognizer = Arc::new(FaceRecognizer::new("http://127.0.0.1:5000"));
+
         Self {
             attendees_repo,
             instructors_repo,
             admins_repo,
             subjects_repo,
             attendances_repo,
+            face_recognizer,
         }
     }
 }

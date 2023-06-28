@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -75,5 +77,5 @@ pub struct UpdateAttendee {
     #[serde(skip)]
     pub embedding: Option<Option<Vec<f64>>>,
     #[serde(skip)]
-    pub image: Option<Vec<u8>>,
+    pub image: Option<(Cow<'static, [u8]>, Cow<'static, str>)>,
 }

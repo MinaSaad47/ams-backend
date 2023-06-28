@@ -22,7 +22,7 @@ use tower_http::{
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::routes::{admins, attendances, attendees, instructors, subjects};
+use crate::routes::{admins, attendances, attendees, config, instructors, subjects};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -52,6 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest(
             "/api",
             Router::new()
+                .merge(config::routes())
                 .merge(admins::routes())
                 .merge(instructors::routes())
                 .merge(attendances::routes())

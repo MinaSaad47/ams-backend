@@ -98,10 +98,6 @@ impl AttendancesRepoTrait for AttendancesRepo {
             .into_iter()
             .collect();
 
-        if attendances.is_empty() {
-            return Err(RepoError::NotFound("attendances".to_owned()));
-        }
-
         let attendees = attendances
             .load_one(attendees::Entity, self.as_ref())
             .await

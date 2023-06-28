@@ -6,42 +6,26 @@ use reqwest::{multipart, Client, Method, Url};
 use serde::{self, de, Deserialize, Serialize};
 
 use thiserror::Error;
+use uuid::Uuid;
 
-use std::{borrow::Cow, collections::VecDeque, io::Bytes};
+use std::{borrow::Cow, collections::VecDeque, io::Bytes, str::FromStr};
 
 use tokio::fs;
 
 #[derive(Error, Debug)]
-#[error("embedding server error")]
-pub struct EmbeddingError;
+#[error("face recognition error")]
+pub struct FaceRecognitionError;
 
 #[async_trait]
 pub trait Embedding
-    where
-        Self: IntoIterator<Item = f64> + Sized
+where
+    Self: IntoIterator<Item = f64> + Sized,
 {
-    async fn from_image(filepath: &str) -> Result<Self, EmbeddingError>;
-
     fn distance(&self, other: &Self) -> f64;
 }
 
 #[async_trait]
 impl Embedding for Vec<f64> {
-    async fn from_image(filepath: &str) -> Result<Self, EmbeddingError> {
-        let client = Client::new();
-
-        let embedding = client
-            .request(Method::POST, "http://127.0.0.1:5000/embed")
-            .multipart(get_image_form_from_file(filepath).await?)
-            .send()
-            .await.map_err(|_|EmbeddingError)?
-            .json()
-            .await.map_err(|_|EmbeddingError)?;
-
-        Ok(embedding)
-    }
-
-
     fn distance(&self, other: &Self) -> f64 {
         self.iter()
             .zip(other.iter())
@@ -51,65 +35,85 @@ impl Embedding for Vec<f64> {
     }
 }
 
-async fn get_image_form_from_file(filepath: &str) -> Result<multipart::Form, EmbeddingError> {
-    let file = {
-        let file = fs::read(filepath).await
-            .map_err(|_|EmbeddingError)?;
-        multipart::Part::bytes(file)
-            .file_name(filepath.to_owned())
-            .mime_str("image/png")
-            .map_err(|_|EmbeddingError)?
-    };
-    Ok(multipart::Form::new().part("image", file))
+pub struct FaceRecognizer {
+    client: Client,
+    classify_url: Url,
+    embed_url: Url,
+    upload_classifier_url: Url,
 }
 
+impl FaceRecognizer {
+    pub fn new(base_url: &str) -> Self {
+        let client = Client::new();
 
-#[cfg(test)]
-mod tests {
-    use std::{
-        path::Path,
-        process::{Command, Stdio},
-        time::Duration,
-    };
+        Self {
+            client,
+            classify_url: Url::from_str(base_url)
+                .and_then(|url| url.join("classify"))
+                .unwrap(),
+            embed_url: Url::from_str(base_url)
+                .and_then(|url| url.join("embed"))
+                .unwrap(),
+            upload_classifier_url: Url::from_str(base_url)
+                .and_then(|url| url.join("upload_classifier"))
+                .unwrap(),
+        }
+    }
 
-    use tokio::time;
+    pub async fn embed(&self, image: &[u8]) -> Result<Vec<f64>, FaceRecognitionError> {
+        let part = multipart::Part::bytes(image.to_owned()).file_name("image");
+        let multipart = multipart::Form::new().part("image", part);
 
-    use super::*;
+        let embedding = self
+            .client
+            .request(Method::POST, self.embed_url.as_ref())
+            .multipart(multipart)
+            .send()
+            .await
+            .map_err(|_| FaceRecognitionError)?
+            .json()
+            .await
+            .map_err(|_| FaceRecognitionError)?;
 
-    #[tokio::test]
-    #[ignore]
-    async fn same_image_has_zero_distance() {
-        todo!("reimplement the test");
+        Ok(embedding)
+    }
 
-        let project_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    pub async fn classify(&self, image: &[u8]) -> Result<Uuid, FaceRecognitionError> {
+        let part = multipart::Part::bytes(image.to_owned()).file_name("image");
+        let multipart = multipart::Form::new().part("image", part);
 
-        let mut server_cmd = Command::new("python3")
-            .args([format!("{}/model/embbed.py", project_dir.to_str().unwrap()).as_str()])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
+        let class: Uuid = self
+            .client
+            .request(Method::POST, self.classify_url.as_ref())
+            .multipart(multipart)
+            .send()
+            .await
+            .map_err(|_| FaceRecognitionError)?
+            .json()
+            .await
+            .map_err(|_| FaceRecognitionError)?;
 
-        let image_path = project_dir.join("image.png").to_str().unwrap().to_owned();
+        Ok(class)
+    }
 
-        let Ok((emb1, emb2)) = time::timeout(Duration::from_secs(6), async {
-            loop {
-                time::sleep(Duration::from_secs(1)).await;
-                let (emb1, emb2) = (
-                    Vec::from_image(&image_path).await,
-                    Vec::from_image(&image_path).await,
-                );
-                if let (Ok(emb1), Ok(emb2)) = (emb1, emb2) {
-                    break (emb1, emb2); 
-                }
-            }
-        }).await else {
-            server_cmd.kill().unwrap();
-            panic!("flask server timed out");
-        };
+    pub async fn upload_classifier(
+        &self,
+        classifier: &[u8],
+    ) -> Result<String, FaceRecognitionError> {
+        let part = multipart::Part::bytes(classifier.to_owned()).file_name("classifier");
+        let multipart = multipart::Form::new().part("classifier", part);
 
-        assert_eq!(0.0, emb1.distance(&emb2));
+        let embedding = self
+            .client
+            .request(Method::POST, self.upload_classifier_url.as_ref())
+            .multipart(multipart)
+            .send()
+            .await
+            .map_err(|_| FaceRecognitionError)?
+            .text()
+            .await
+            .map_err(|_| FaceRecognitionError)?;
 
-        server_cmd.kill().unwrap();
+        Ok(embedding)
     }
 }

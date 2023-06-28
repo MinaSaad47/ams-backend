@@ -397,7 +397,7 @@ async fn upload_image(
         .update(
             instructor_id,
             UpdateInstructor {
-                image: Some(image),
+                image: Some(image.into()),
                 ..Default::default()
             },
         )

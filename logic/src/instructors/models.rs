@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -59,7 +61,7 @@ pub struct CreateInstructor {
 
 #[derive(Deserialize, Serialize, Debug, ToSchema, Default)]
 #[serde(rename_all = "camelCase")]
-pub struct UpdateInstructor {
+pub struct UpdateInstructor{
     #[schema(example = "Emil Instructor")]
     pub name: Option<String>,
     #[schema(example = "EmilInstructor@outlook.com")]
@@ -67,7 +69,7 @@ pub struct UpdateInstructor {
     #[schema(example = "12345678")]
     pub password: Option<String>,
     #[serde(skip)]
-    pub image: Option<Vec<u8>>,
+    pub image: Option<Cow<'static, [u8]>>,
     #[schema(example = 3232323)]
     pub number: Option<i64>,
 }

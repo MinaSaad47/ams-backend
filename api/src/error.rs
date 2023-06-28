@@ -1,6 +1,6 @@
 use axum::{http::StatusCode, response::IntoResponse, Json};
 use logic::prelude::RepoError;
-use nn_model::EmbeddingError;
+use nn_model::FaceRecognitionError;
 use serde::Serialize;
 use serde_json::json;
 use thiserror::Error;
@@ -42,9 +42,9 @@ impl ApiError {
     }
 }
 
-impl From<EmbeddingError> for ApiError {
+impl From<FaceRecognitionError> for ApiError {
     #[tracing::instrument(level = "error")]
-    fn from(error: EmbeddingError) -> Self {
+    fn from(error: FaceRecognitionError) -> Self {
         Self::FaceRecogition
     }
 }

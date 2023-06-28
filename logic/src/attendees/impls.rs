@@ -29,16 +29,16 @@ impl AttendeesRepo {
         }
     }
 
-    async fn save_image(&self, id: Uuid, image: Vec<u8>) -> PathBuf {
+    async fn save_image(&self, id: Uuid, image: &[u8], file_name: &str) -> PathBuf {
         let attendee_dir = self.assets.join(id.to_string());
 
         if attendee_dir.exists() == false {
             fs::create_dir_all(&attendee_dir).await.unwrap();
         }
 
-        let image_path = attendee_dir.join("image.png");
+        let image_path = attendee_dir.join(file_name);
 
-        fs::write(&image_path, &image).await.unwrap();
+        fs::write(&image_path, image).await.unwrap();
 
         image_path
     }
@@ -92,8 +92,8 @@ impl AttendeesRepoTrait for AttendeesRepo {
             attendee.embedding = Set(embedding);
         }
 
-        if let Some(image) = image {
-            let path = self.save_image(id, image).await;
+        if let Some((image, file_name)) = image {
+            let path = self.save_image(id, &image, &file_name).await;
             attendee.image = Set(Some(path.to_string_lossy().into()))
         }
 
