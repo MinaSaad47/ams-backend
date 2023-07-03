@@ -52,18 +52,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "250f629c0161ad8107cf89319e990051fae62832fd343083bea452d93e2205fd"
 
 [[package]]
-name = "android_system_properties"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "819e7219dbd41043ac279b19830f2efc897156490d7fd6ea916720117ee66311"
-dependencies = [
- "libc",
-]
-
-[[package]]
-name = "api"
+name = "ams-api"
 version = "0.1.0"
 dependencies = [
+ "ams-facerec",
+ "ams-logic",
  "axum",
  "axum-test-helper",
  "chrono",
@@ -72,10 +65,8 @@ dependencies = [
  "dotenvy_macro",
  "hyper",
  "jsonwebtoken",
- "logic",
  "mime",
  "mockall",
- "nn-model",
  "once_cell",
  "rstest",
  "sea-orm",
@@ -90,6 +81,49 @@ dependencies = [
  "utoipa",
  "utoipa-swagger-ui",
  "uuid",
+]
+
+[[package]]
+name = "ams-facerec"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "reqwest",
+ "serde",
+ "thiserror",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "ams-logic"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "cron",
+ "dotenvy",
+ "dotenvy_macro",
+ "itertools",
+ "mockall",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "utoipa",
+ "uuid",
+]
+
+[[package]]
+name = "android_system_properties"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "819e7219dbd41043ac279b19830f2efc897156490d7fd6ea916720117ee66311"
+dependencies = [
+ "libc",
 ]
 
 [[package]]
@@ -1135,28 +1169,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "logic"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "cron",
- "dotenvy",
- "dotenvy_macro",
- "itertools",
- "mockall",
- "sea-orm",
- "serde",
- "serde_json",
- "sqlx",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "utoipa",
- "uuid",
-]
-
-[[package]]
 name = "matchers"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1272,18 +1284,6 @@ dependencies = [
  "mime",
  "spin 0.9.7",
  "version_check",
-]
-
-[[package]]
-name = "nn-model"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "reqwest",
- "serde",
- "thiserror",
- "tokio",
- "uuid",
 ]
 
 [[package]]

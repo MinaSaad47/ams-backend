@@ -1,6 +1,6 @@
 [workspace]
 
-members = ["nn-model", "api", "logic"]
+members = ["ams-facerec", "ams-api", "ams-logic"]
 
 [workspace.dependencies]
 serde = { version = "1.0.152", features = ["serde_derive"] }

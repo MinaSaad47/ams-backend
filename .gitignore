@@ -1,4 +1,4 @@
 /target
-container-compose.yaml
-/nn-model/model
 /assets
+.env
+__pycache__
