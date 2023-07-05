@@ -7,8 +7,11 @@ use tokio::sync::RwLock;
 use tracing_subscriber::filter::LevelFilter;
 use utoipa::ToSchema;
 
-pub(crate) static DB_CONNECTION: Lazy<String> = Lazy::new(|| env::var("DATABASE_URL").unwrap());
+pub(crate) static DATABASE_URL: Lazy<String> = Lazy::new(|| env::var("DATABASE_URL").unwrap());
 pub(crate) static SECRET: Lazy<String> = Lazy::new(|| env::var("JWT_SECRET").unwrap());
+pub(crate) static FACEREC_URL: Lazy<String> = Lazy::new(|| env::var("FACEREC_URL").unwrap());
+pub(crate) static ASSETS_DIR: Lazy<String> =
+    Lazy::new(|| env::var("ASSETS_DIR").unwrap_or("assets".to_owned()));
 pub(crate) const LOG_LEVEL: LevelFilter = LevelFilter::DEBUG;
 
 #[derive(Deserialize, ToSchema)]

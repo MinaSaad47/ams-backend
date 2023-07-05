@@ -9,6 +9,8 @@ use ams_logic::subjects::{
 use axum::extract::FromRef;
 use sea_orm::DatabaseConnection;
 
+use super::config::FACEREC_URL;
+
 pub(crate) type DynAdminsRepo = Arc<dyn AdminsRepoTrait + Send + Sync>;
 pub(crate) type DynInstructorsRepo = Arc<dyn InstructorsRepoTrait + Send + Sync>;
 pub(crate) type DynAttendeesRepo = Arc<dyn AttendeesRepoTrait + Send + Sync>;
@@ -38,7 +40,7 @@ impl State {
         let admins_repo = Arc::new(AdminsRepo(db.clone()));
         let subjects_repo = Arc::new(SubjectsRepository(db.clone()));
         let attendances_repo = Arc::new(AttendancesRepo(db));
-        let face_recognizer = Arc::new(FaceRecognizer::new("http://127.0.0.1:5000"));
+        let face_recognizer = Arc::new(FaceRecognizer::new(&FACEREC_URL));
 
         Self {
             attendees_repo,

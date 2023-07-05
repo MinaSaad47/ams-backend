@@ -1,3 +1,4 @@
+SET TIMEZONE TO 'Africa/Cairo';
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE TABLE IF NOT EXISTS admins (
@@ -48,7 +49,7 @@ CREATE TABLE IF NOT EXISTS subject_dates (
     subject_id UUID NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
     create_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT ck_day_of_week CHECK (day_of_week >= 0 AND day_of_week <= 6),
+    CONSTRAINT ck_day_of_week CHECK (day_of_week >= 1 AND day_of_week <= 7),
     CONSTRAINT ck_start_end_time CHECK (start_time < end_time)
 );
 
@@ -58,11 +59,28 @@ CREATE TABLE IF NOT EXISTS attendees_subjects (
     CONSTRAINT pk_attendees_subjects_pkey PRIMARY KEY (attendee_id, subject_id)
 );
 
+CREATE OR REPLACE FUNCTION is_current_time_within_subject_date(in_subject_id UUID)
+    RETURNS BOOLEAN AS $$
+    DECLARE
+        current_day_of_week INTEGER := EXTRACT(ISODOW FROM CURRENT_TIMESTAMP);
+        current_time TIME := CURRENT_TIME;
+    BEGIN
+        RETURN EXISTS (
+            SELECT 1 FROM subject_dates sd
+            WHERE sd.subject_id = in_subject_id
+            AND current_day_of_week = sd.day_of_week
+            AND current_time >= sd.start_time
+            AND current_time <= sd.end_time
+        );
+    END;
+$$ LANGUAGE plpgsql;
+
 CREATE TABLE IF NOT EXISTS attendances (
     id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     subject_id UUID NOT NULL REFERENCES subjects(id),
     attendee_id UUID NOT NULL REFERENCES attendees(id),
-    create_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    create_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_current_time_within_subject_date CHECK (is_current_time_within_subject_date(subject_id))
 );
 
 INSERT INTO admins (name, email, password)

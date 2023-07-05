@@ -94,7 +94,9 @@ impl AttendeesRepoTrait for AttendeesRepo {
 
         if let Some((image, file_name)) = image {
             let path = self.save_image(id, &image, &file_name).await;
-            attendee.image = Set(Some(path.to_string_lossy().into()))
+            if file_name == "image.png" {
+                attendee.image = Set(Some(path.to_string_lossy().into()));
+            }
         }
 
         let attendee: attendees::Model = attendee.update(self.as_ref()).await?;

@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
+use ams_facerec::FaceRecognizer;
 use axum::{
     extract::{DefaultBodyLimit, Multipart, Query, State},
     routing::{post, put},
     Router,
 };
-use ams_facerec::FaceRecognizer;
 use serde::Deserialize;
 use utoipa::{IntoParams, ToSchema};
 

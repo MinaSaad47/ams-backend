@@ -20,7 +20,7 @@ class Classifier():
         self.classes = classes
     def classify(self, image) -> str:
         image_tensor = self.preprocessing(image)
-        image_tensor = image_tensor.unsqueeze(0).to(self.device)
+        image_tensor = image_tensor.to(self.device).unsqueeze(0)
         with torch.no_grad():
             output = self.model.to(self.device)(image_tensor)
         idx = torch.argmax(output)
@@ -55,9 +55,9 @@ def initialize_variables():
     print(f'loaded MTCNN')
     resnet = InceptionResnetV1(pretrained='vggface2').to(device).eval()
     print(f'loaded InceptionResnetV1')
-    classifier_path = os.environ.get('CLASSIFIER_PATH', 'assets/classifier.pkl')
+    classifier_path = os.environ.get('CLASSIFIER_PATH', 'classifier.pkl')
     try:
-        classifier = torch.load(classifier_path)
+        classifier = torch.load(classifier_path, map_location=device).to(device)
         print(f'loaded Classifier')
     except:
         print(f'classifier not found')
@@ -94,7 +94,7 @@ async def upload_classifier(model: UploadFile) -> str:
     global classifier, classifier_path, device
     with open(classifier_path, "wb") as buffer:
         shutil.copyfileobj(model.file, buffer)
-    classifier = torch.load(classifier_path).to(device)
+    classifier = torch.load(classifier_path, map_location=device).to(device)
 
     return 'uploaded model successfully'
 

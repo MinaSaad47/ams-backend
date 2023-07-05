@@ -8,10 +8,13 @@ services:
     environment:
       - DATABASE_URL=postgres://postgres:postgres@database/postgres
       - DATABASE_BASE_URL=postgres://postgres:postgres@database
+      - FACEREC_URL=http://facerec:5000
       - JWT_SECRET=secret
-      - ASSETS=assets
+      - ASSETS_DIR=assets
     ports:
       - 3000:3000
+    volumes:
+      - api-data:/app/assets
     depends_on:
       - database
       - ams-facerec
@@ -24,6 +27,8 @@ services:
     build:
       context: ./ams-facerec/model/
       dockerfile: Dockerfile
+    volumes:
+      - facerec-data:/app
     ports:
       - 5000:5000
     restart: always
@@ -59,3 +64,5 @@ services:
     restart: always
 volumes:
   db-data:
+  api-data:
+  facerec-data:

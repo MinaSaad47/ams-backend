@@ -42,7 +42,7 @@ use crate::app::config;
 /// This function will return an error if the connection can't be established.
 #[tracing::instrument(err)]
 pub(crate) async fn database_connection() -> Result<DatabaseConnection, DbErr> {
-    let mut opt = ConnectOptions::new(config::DB_CONNECTION.to_owned());
+    let mut opt = ConnectOptions::new(config::DATABASE_URL.to_owned());
     opt.sqlx_logging_level(log::LevelFilter::Debug);
 
     tracing::info!("establishing database connection");

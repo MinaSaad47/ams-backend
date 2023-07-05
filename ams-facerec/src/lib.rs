@@ -101,7 +101,7 @@ impl FaceRecognizer {
         classifier: &[u8],
     ) -> Result<String, FaceRecognitionError> {
         let part = multipart::Part::bytes(classifier.to_owned()).file_name("classifier");
-        let multipart = multipart::Form::new().part("classifier", part);
+        let multipart = multipart::Form::new().part("model", part);
 
         let embedding = self
             .client

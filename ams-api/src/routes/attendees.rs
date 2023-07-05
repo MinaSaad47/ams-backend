@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use tracing;
+
 use axum::{
     extract::{Multipart, Path, State},
     routing::{get, post},
@@ -8,8 +10,8 @@ use axum::{
 use jsonwebtoken::{encode, Header};
 use uuid::Uuid;
 
-use ams_logic::prelude::*;
 use ams_facerec::{Embedding, FaceRecognizer};
+use ams_logic::prelude::*;
 
 use crate::{
     app::{
@@ -461,6 +463,7 @@ async fn upload_image(
         };
 
         if let Some("image") = name {
+            tracing::info!(target: "adding profile image", image=?file_name);
             let image = item.bytes().await.map_err(|_| ApiError::Internal)?.to_vec();
             let embedding = fr.embed(&image).await?;
             repo.update(
@@ -473,6 +476,7 @@ async fn upload_image(
             )
             .await?;
         } else {
+            tracing::info!(target: "adding extra image", image=?file_name);
             let image = item.bytes().await.map_err(|_| ApiError::Internal)?.to_vec();
             repo.update(
                 attendee_id,
